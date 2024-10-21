@@ -1,0 +1,990 @@
+﻿<%@ Page Language="C#" AutoEventWireup="true" CodeBehind="RoboControl.aspx.cs" Inherits="Web_Fanuc_Robot_0907.RoboControl" %>
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head runat="server">
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+    <title>Robot Control</title>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <meta name="description" content="" />
+    <meta name="author" content="" />
+    <link href="Content/styles.css" rel="stylesheet" />
+    <script src="Scripts/all.js" crossorigin="anonymous"></script>
+    <script src="Scripts/jquery-3.4.1.min.js"></script>
+
+    <style>
+        #dataTable td{
+            padding:10px;
+            border:1px solid;
+            text-align:center;
+
+        }
+        #dataTable th{
+            padding:10px;
+            border:1px solid;
+            text-align:center;
+        }
+        td{
+        padding:10px; 
+        left:15%;
+        text-align:center;
+        border:0px solid;
+        
+        }
+        .col-md-2 table{
+            position:relative;
+            left:0%;
+        }
+        p{
+            font-weight:bold;
+        }
+        #test input{
+            font-weight:bold;
+            
+        }
+        #dataTable tr:hover{
+            background-color:chartreuse;
+            cursor: pointer; 
+        }
+    </style>
+     <script type="text/javascript">
+         //全域變數
+         var hostname = "https://192.168.1.50:5000/";
+
+         var incrementButton = document.getElementById('incrementButton');
+         var decrementButton = document.getElementById('decrementButton');
+
+         var resultElement = document.getElementById('result');
+
+         // 初始化变量
+         var count = 0;
+         var interval;
+
+         function count_Joint_add(val) {
+             var speed = 200;
+             var robotval = val.parentElement.parentElement.querySelectorAll('p')[1];
+             console.log($(val).val());
+             $(val).removeClass('btn-primary')
+             $(val).addClass("btn btn-warning")
+             interval = setInterval(function () {
+                 count++;
+                
+                 if (count > 10) {
+                     speed = 100;
+                 }
+
+                 val.parentElement.parentElement.querySelector("td").querySelector("p").textContent = count;
+                 robotval.textContent = parseFloat(robotval.textContent) + 1;
+
+             }, speed); // 这里的100表示每100毫秒累加一次
+             return false;
+         }
+
+         function loding_page() {
+             setInterval(updateWebcamImage, 1000);
+
+         }
+
+         function updateWebcamImage() {
+             // 获取图像元素
+             var webcamImage = document.getElementById('gle');
+
+             // 设置图像的 src 属性为 Flask 服务器提供的影像流 URL
+             webcamImage.src = hostname + 'screen'; // 替换为你的 Flask 服务器地址
+             
+         }
+
+         function count_Joint_min(val) {
+             $(val).removeClass('btn-primary')
+             $(val).addClass("btn btn-warning")
+             var speed = 200;
+             var robotval = val.parentElement.parentElement.querySelectorAll('p')[1];
+
+             interval = setInterval(function () {
+                 count--;
+
+                 if (count < -5 & count > -12) {
+                     speed = 100;
+                 } else {
+                     speed = 20;
+                 }
+                 val.parentElement.parentElement.querySelector("td").querySelector("p").textContent = count;
+                 robotval.textContent = parseFloat(robotval.textContent) - 1;
+
+             }, speed); // 这里的100表示每100毫秒累加一次
+             return false;
+         }
+         function count_down(val) {
+             $(val).removeClass('btn-warning');
+             $(val).addClass("btn btn-primary");
+             clearInterval(interval);
+             console.log(val.className.substring(0, 2).replace(/ /g, ""));
+             check_deg(count, val.className.substring(0, 2).replace(/ /g, ""));
+             count = 0;
+             val.parentElement.parentElement.querySelector("td").querySelector("p").textContent = count;
+         }
+         function count_stop(val) {
+             $(val).removeClass('btn-warning');
+             $(val).addClass("btn btn-primary");
+             clearInterval(interval);
+             count = 0;
+             val.parentElement.parentElement.querySelector("td").querySelector("p").textContent = count;
+         }
+
+         function check_deg(cout,id) {
+             var time = new Date();
+                 
+
+             $.ajax({
+                 type: "POST",
+                 url: "RoboControl.aspx/Web_SetJoint",
+                 data: JSON.stringify({
+                     "data": cout,
+                     "Joint": id,
+                 }),
+                 contentType: "application/json; charset=utf-8",
+                 dataType: "json",
+                 success: function (response) {
+                     console.log(JSON.parse(response.d));
+                     $('#coords_X').val(Math.round(JSON.parse(response.d).X * 1000) / 1000);
+                     $('#coords_Y').val(Math.round(JSON.parse(response.d).Y * 1000) / 1000);
+                     $('#coords_Z').val(Math.round(JSON.parse(response.d).Z * 1000) / 1000);
+                     $('#coords_W').val(Math.round(JSON.parse(response.d).W * 1000) / 1000);
+                     $('#coords_P').val(Math.round(JSON.parse(response.d).P * 1000) / 1000);
+                     $('#coords_R').val(Math.round(JSON.parse(response.d).R * 1000) / 1000);
+                     $('#coords_J1').val(Math.round(JSON.parse(response.d).j1 * 1000) / 1000);
+                     $('#coords_J2').val(Math.round(JSON.parse(response.d).j2 * 1000) / 1000);
+                     $('#coords_J3').val(Math.round(JSON.parse(response.d).j3 * 1000) / 1000);
+                     $('#coords_J4').val(Math.round(JSON.parse(response.d).j4 * 1000) / 1000);
+                     $('#coords_J5').val(Math.round(JSON.parse(response.d).j5 * 1000) / 1000);
+                     $('#coords_J6').val(Math.round(JSON.parse(response.d).j6 * 1000) / 1000);
+
+                     $('#P1').text(Math.round(JSON.parse(response.d).X * 1000) / 1000);
+                     $('#P2').text(Math.round(JSON.parse(response.d).Y * 1000) / 1000);
+                     $('#P3').text(Math.round(JSON.parse(response.d).Z * 1000) / 1000);
+                     $('#P4').text(Math.round(JSON.parse(response.d).W * 1000) / 1000);
+                     $('#P5').text(Math.round(JSON.parse(response.d).P * 1000) / 1000);
+                     $('#P6').text(Math.round(JSON.parse(response.d).R * 1000) / 1000);
+                     $('#J1value').text(Math.round(JSON.parse(response.d).j1 * 1000) / 1000);
+                     $('#J2value').text(Math.round(JSON.parse(response.d).j2 * 1000) / 1000);
+                     $('#J3value').text(Math.round(JSON.parse(response.d).j3 * 1000) / 1000);
+                     $('#J4value').text(Math.round(JSON.parse(response.d).j4 * 1000) / 1000);
+                     $('#J5value').text(Math.round(JSON.parse(response.d).j5 * 1000) / 1000);
+                     $('#J6value').text(Math.round(JSON.parse(response.d).j6 * 1000) / 1000);
+
+
+                     //TODO : 2023/09/07 把剩下關節移動設定完成
+                     
+                 }
+             });
+         }
+         function sendcoords() {
+             var count_add = 1
+
+
+
+             //剩餘動作 2023-09-13 完成table的讀出與點擊table下座標
+             const dataTable = document.getElementById('dataTable').getElementsByTagName('tbody')[0];
+             var CoordTable = document.getElementById('dataTable');
+             for (let a = 1; a < CoordTable.rows.length; a++) {
+                 count_add += 1;
+             }
+             $.ajax({
+                 type: "POST",
+                 url: "RoboControl.aspx/Web_ReadCoords",
+                 data: JSON.stringify({
+                     "data": "test",
+                 }),
+                 contentType: "application/json; charset=utf-8",
+                 dataType: "json",
+                 success: function (response) {
+                     console.log(JSON.parse(response.d));
+                     console.log(JSON.parse(response.d).x);
+
+                     document.getElementById("coords_X").value = Math.round(JSON.parse(response.d).x * 1000) / 1000;
+                     document.getElementById("coords_Y").value = Math.round(JSON.parse(response.d).y * 1000) / 1000;
+                     document.getElementById("coords_Z").value = Math.round(JSON.parse(response.d).z * 1000) / 1000;
+                     document.getElementById("coords_W").value = Math.round(JSON.parse(response.d).w * 1000) / 1000;
+                     document.getElementById("coords_P").value = Math.round(JSON.parse(response.d).p * 1000) / 1000;
+                     document.getElementById("coords_R").value = Math.round(JSON.parse(response.d).r * 1000) / 1000;
+                     document.getElementById("coords_J1").value = Math.round(JSON.parse(response.d).j1 * 1000) / 1000;
+                     document.getElementById("coords_J2").value = Math.round(JSON.parse(response.d).j2 * 1000) / 1000;
+                     document.getElementById("coords_J3").value = Math.round(JSON.parse(response.d).j3 * 1000) / 1000;
+                     document.getElementById("coords_J4").value = Math.round(JSON.parse(response.d).j4 * 1000) / 1000;
+                     document.getElementById("coords_J5").value = Math.round(JSON.parse(response.d).j5 * 1000) / 1000;
+                     document.getElementById("coords_J6").value = Math.round(JSON.parse(response.d).j6 * 1000) / 1000;
+                     //const dataTable = document.getElementById('dataTable').getElementsByTagName('tbody')[0];
+                     const newRow = dataTable.insertRow();
+
+                     // 向新行中插入单元格，并设置单元格内容
+                     const cell1 = newRow.insertCell(0);
+                     cell1.innerHTML = count_add;
+
+                     const cell2 = newRow.insertCell(1);
+                     cell2.innerHTML = Math.round(JSON.parse(response.d).x * 1000) / 1000;
+
+                     const cell3 = newRow.insertCell(2);
+                     cell3.innerHTML = Math.round(JSON.parse(response.d).y * 1000) / 1000;
+
+                     const cell4 = newRow.insertCell(3);
+                     cell4.innerHTML = Math.round(JSON.parse(response.d).z * 1000) / 1000;
+
+                     const cell5 = newRow.insertCell(4);
+                     cell5.innerHTML = Math.round(JSON.parse(response.d).w * 1000) / 1000;
+
+                     const cell6 = newRow.insertCell(5);
+                     cell6.innerHTML = Math.round(JSON.parse(response.d).p * 1000) / 1000;
+
+                     const cell7 = newRow.insertCell(6);
+                     cell7.innerHTML = Math.round(JSON.parse(response.d).r * 1000) / 1000;
+
+                     newRow.addEventListener('click', () => {
+
+                         const cell_X_Value = newRow.cells[1].textContent;
+                         const cell_Y_Value = newRow.cells[2].textContent;
+                         const cell_Z_Value = newRow.cells[3].textContent;
+                         const cell_W_Value = newRow.cells[4].textContent;
+                         const cell_P_Value = newRow.cells[5].textContent;
+                         const cell_R_Value = newRow.cells[6].textContent;
+                         console.log('点击了新行' + cell_Z_Value);
+                         //事件: 點擊後移動手臂
+                         $.ajax({
+                             type: "POST",
+                             url: "RoboControl.aspx/Web_SetCoords",
+                             data: JSON.stringify({
+                                 "cordX": cell_X_Value,
+                                 "cordY": cell_Y_Value,
+                                 "cordZ": cell_Z_Value,
+                                 "cordW": cell_W_Value,
+                                 "cordP": cell_P_Value,
+                                 "cordR": cell_R_Value,
+                             }),
+                             contentType: "application/json; charset=utf-8",
+                             dataType: "json",
+                             success: function (response) {
+                                 console.log(JSON.parse(response.d));
+
+                             }
+                         });
+                     });
+                     //將值傳送到python紀錄成csv
+                     $.ajax({
+                         type: "POST",
+                         url: hostname + "take",
+                         data: JSON.stringify({
+                             "cordX": Math.round(JSON.parse(response.d).x * 1000) / 1000,
+                             "cordY": Math.round(JSON.parse(response.d).y * 1000) / 1000,
+                             "cordZ": Math.round(JSON.parse(response.d).z * 1000) / 1000,
+                             "cordW": Math.round(JSON.parse(response.d).w * 1000) / 1000,
+                             "cordP": Math.round(JSON.parse(response.d).p * 1000) / 1000,
+                             "cordR": Math.round(JSON.parse(response.d).r * 1000) / 1000,
+                         }),
+                         contentType: "application/json; charset=utf-8",
+                         dataType: "json",
+                         success: function (response) {
+                             console.log(JSON.parse(response.d));
+
+                         }
+                     });
+
+                 },
+                 error: function () {
+                     // 请求失败后的处理
+                     console.log("请求失败");
+                 }
+             });
+
+         }
+
+
+         $(document).ready(function () {
+             loding_page();
+             $('#coords_table input').addClass("btn btn-primary");
+             $('#coords_table input').css('width', '100%');
+             $('#coords_table input').css('height', '40px');
+
+             $('#joint_table input').addClass("btn btn-success");
+             $('#joint_table input').css('width', '100%');
+             $('#joint_table input').css('height', '40px');
+
+             check_deg(0, "init");//讀取手臂當前座標
+
+             if (document.getElementById("dataTable").querySelector('tbody').innerHTML == "") {
+                 var dataTables = document.getElementById('dataTable').getElementsByTagName('tbody')[0];
+
+                 
+                 $.ajax({
+                     type: "GET",
+                     url: hostname + "record_coord",
+                     contentType: "application/json; charset=utf-8",
+                     dataType: "json",
+                     success: function (response) {
+                         console.log(response.coord)
+                         for (var i = 0; i < response.coord.length; i++) {
+                             var newRows = dataTables.insertRow();
+                             console.log(response.coord[i]);
+                             for (var ins = 0; ins < response.coord[i].length; ins++) {
+                                 var cell1 = newRows.insertCell(ins);
+                                 cell1.innerHTML = response.coord[i][ins];
+                                 console.log()
+                             }
+                             var cell1 = newRows.insertCell(0);
+                             cell1.innerHTML = i+1;//插入times
+
+                            
+
+                           
+                             console.log("Next。。。");
+                           
+                         }
+                         var CoordTable = document.getElementById('dataTable');
+                         for (let a = 1; a < CoordTable.rows.length; a++) {
+                             const currentRow = CoordTable.rows[a];
+                             console.log('123');
+                             // 为每一行添加点击事件监听器
+                             currentRow.addEventListener('click', (event) => {
+                                 // 获取当前行中第一个单元格的值（索引为0）
+                                 const cell_X_Value = currentRow.cells[1].textContent;
+                                 const cell_Y_Value = currentRow.cells[2].textContent;
+                                 const cell_Z_Value = currentRow.cells[3].textContent;
+                                 const cell_W_Value = currentRow.cells[4].textContent;
+                                 const cell_P_Value = currentRow.cells[5].textContent;
+                                 const cell_R_Value = currentRow.cells[6].textContent;
+
+                                 // 在这里可以使用 cellValue 做任何你需要的操作
+                                 //console.log('X' + cell_X_Value);
+                                 //console.log('Y' + cell_Y_Value);
+                                 //console.log('Z' + cell_Z_Value);
+                                 //console.log('W' + cell_W_Value);
+                                 //console.log('P' + cell_P_Value);
+                                 //console.log('R' + cell_R_Value);
+                                 $.ajax({
+                                     type: "POST",
+                                     url: "RoboControl.aspx/Web_SetCoords",
+                                     data: JSON.stringify({
+                                         "cordX": cell_X_Value,
+                                         "cordY": cell_Y_Value,
+                                         "cordZ": cell_Z_Value,
+                                         "cordW": cell_W_Value,
+                                         "cordP": cell_P_Value,
+                                         "cordR": cell_R_Value,
+                                     }),
+                                     contentType: "application/json; charset=utf-8",
+                                     dataType: "json",
+                                     success: function (response) {
+                                         console.log(JSON.parse(response.d));
+
+                                     }
+                                 });
+
+                             });
+                         }
+                         //TODO : 2023/09/14 完成列表及控制
+
+                     }
+                 });
+                 
+             }
+
+             const elements = document.querySelectorAll('.wheellisten');
+             elements.forEach((element) => {
+                 console.log()
+                 element.parentElement.parentElement.querySelector('td').style.display = "none";
+                 element.addEventListener('wheel', () => {
+                     var buffer = element.textContent;
+
+                     var element_number = element.parentElement.parentElement.querySelector('p')
+                     var number = element_number.innerHTML;
+                     if (event.deltaY > 0) {
+                         // 滚轮向下滚动，数字减1
+                         number--;
+                         //var tdColor = `rgb(${Math.min(255, 100 + number * 2)},220, 220)`;
+                         //element.parentElement.parentElement.style.backgroundColor = tdColor;
+
+                         //var tdColor = `linear-gradient(to bottom, #ff${100 - number * 5}5c, #ff${100 - number * 5}ff)`;
+                         //element.parentElement.parentElement.style.background = tdColor;
+
+                         element.textContent = Math.round((parseFloat(element.textContent) - 1) * 1000) / 1000;
+
+                     } else {
+                         // 滚轮向上滚动，数字加1
+                         number++;
+                         //var tdColor = `rgb(${Math.min(255, 100 + number * 2)}, 220, 220`;
+                         //element.parentElement.parentElement.style.backgroundColor = tdColor;
+
+                         //var tdColor = `linear-gradient(to bottom, #ff${100 - number * 5}5c, #aa${100 - number * 5}66)`;
+
+                         //element.parentElement.parentElement.style.background = tdColor;
+                        element.textContent = Math.round((parseFloat(element.textContent) + 1) * 1000) / 1000;
+
+                     }
+
+                     // 更新显示的数字
+                     element_number.textContent = number;
+                 });
+                 element.addEventListener('mouseout', () => {
+
+                     var element_number = element.parentElement.parentElement.querySelector('p')
+                     var number = element_number.innerHTML;
+                     var tdColor = `rgb(255, 255, 255)`;
+                     element.parentElement.parentElement.style.backgroundColor = tdColor;
+                     element.parentElement.parentElement.style.background = "";
+
+                     if (parseInt(element_number) >= 0) {
+                         element.textContent = Math.round((parseFloat(element.textContent) + parseInt(number)) * 1000) / 1000;
+
+                     } else {
+                         element.textContent = Math.round((parseFloat(element.textContent) - parseInt(number)) * 1000) / 1000;
+
+                     }
+                     number = 0;
+                     element_number.textContent = number;
+                     // 更新显示的数字
+                 });
+
+
+                 element.addEventListener('click', () => {
+                     var element_number = element.parentElement.parentElement.querySelector('p');
+                     var clsname = element.parentElement.parentElement.querySelector('input');
+                     var number = element_number.innerHTML;
+                     var tdColor = `rgb(255, 255, 255)`;
+                     element.parentElement.parentElement.style.backgroundColor = tdColor;
+                     check_deg(number, clsname.className.substring(0,2).replace(/ /g, ""));
+                     number = 0;
+                     element_number.textContent = number;
+                 });
+              
+             });
+           
+         });
+         function read_pos() {
+             console.log('已讀')
+             $.ajax({
+                 type: "POST",
+                 url: "RoboControl.aspx/Web_ReadCoords",
+                 data: JSON.stringify({
+                     "data": "test",
+                 }),
+                 contentType: "application/json; charset=utf-8",
+                 dataType: "json",
+                 success: function (response) {
+                     console.log(JSON.parse(response.d));
+                     console.log(JSON.parse(response.d).x);
+
+                     document.getElementById("coords_X").value = Math.round(JSON.parse(response.d).x * 1000) / 1000;
+                     document.getElementById("coords_Y").value = Math.round(JSON.parse(response.d).y * 1000) / 1000;
+                     document.getElementById("coords_Z").value = Math.round(JSON.parse(response.d).z * 1000) / 1000;
+                     document.getElementById("coords_W").value = Math.round(JSON.parse(response.d).w * 1000) / 1000;
+                     document.getElementById("coords_P").value = Math.round(JSON.parse(response.d).p * 1000) / 1000;
+                     document.getElementById("coords_R").value = Math.round(JSON.parse(response.d).r * 1000) / 1000;
+                     document.getElementById("coords_J1").value = Math.round(JSON.parse(response.d).j1 * 1000) / 1000;
+                     document.getElementById("coords_J2").value = Math.round(JSON.parse(response.d).j2 * 1000) / 1000;
+                     document.getElementById("coords_J3").value = Math.round(JSON.parse(response.d).j3 * 1000) / 1000;
+                     document.getElementById("coords_J4").value = Math.round(JSON.parse(response.d).j4 * 1000) / 1000;
+                     document.getElementById("coords_J5").value = Math.round(JSON.parse(response.d).j5 * 1000) / 1000;
+                     document.getElementById("coords_J6").value = Math.round(JSON.parse(response.d).j6 * 1000) / 1000;
+
+
+                 },
+                 error: function () {
+                     // 请求失败后的处理
+                     console.log("请求失败");
+                 }
+             });
+        
+         }
+     </script>
+    </head>
+<body class="sb-nav-fixed" >
+        <form id="form1" runat="server">
+            <nav class="sb-topnav navbar navbar-expand navbar-dark bg-dark">
+            <!-- Navbar Brand-->
+            <a class="navbar-brand ps-3" href="CheckBoard.aspx">Harvesting Robot</a>
+            <!-- Sidebar Toggle-->
+            <button class="btn btn-link btn-sm order-1 order-lg-0 me-4 me-lg-0" id="sidebarToggle" href="#!"><i class="fas fa-bars"></i></button>
+            <!-- Navbar Search-->
+            <div class="d-none d-md-inline-block form-inline ms-auto me-0 me-md-3 my-2 my-md-0">
+
+
+            </div>
+            <!-- Navbar-->
+            <ul class="navbar-nav ms-auto ms-md-0 me-3 me-lg-4">
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" id="navbarDropdown" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false"><i class="fas fa-user fa-fw"></i></a>
+                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown">
+                        <li><a class="dropdown-item" href="RoboControl.aspx">Settings</a></li>
+                        <li><a class="dropdown-item" href="RoboVisionHub.aspx">Detecting</a></li>
+
+<%--                        <li><a class="dropdown-item" href="#!">Activity Log</a></li>--%>
+                        <li><hr class="dropdown-divider" /></li>
+                        <li><a class="dropdown-item" href="#!">Logout</a></li>
+                    </ul>
+                </li>
+            </ul>
+        </nav>
+        <div id="layoutSidenav">
+            <div id="layoutSidenav_nav">
+                <nav class="sb-sidenav accordion sb-sidenav-dark" id="sidenavAccordion">
+                    <div class="sb-sidenav-menu">
+                        <div class="nav">
+                            <div class="sb-sidenav-menu-heading">World Coord</div>
+                            <table>
+                                <tr>
+                                    <td>
+                                        <div class="nav-link">
+                                            <div class="sb-nav-link-icon"><i class="fas fa-tachometer-alt"></i></div>
+                                            X :
+                                        </div>
+                                    </td>
+                                    <td>
+                                       <input id="coords_X" value="0" style="width:60%" />
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                         <div class="nav-link">
+                                            <div class="sb-nav-link-icon"><i class="fas fa-tachometer-alt"></i></div>
+                                            Y :
+                                        </div>
+                                    </td>
+                                    <td>
+                                         <input id="coords_Y" value="0" style="width:60%" />
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <div class="nav-link">
+                                            <div class="sb-nav-link-icon"><i class="fas fa-tachometer-alt"></i></div>
+                                            Z :
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <input id="coords_Z" value="0" style="width:60%" />
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <div class="nav-link">
+                                            <div class="sb-nav-link-icon"><i class="fas fa-tachometer-alt"></i></div>
+                                            W: 
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <input id="coords_W" value="0" style="width:60%" />
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                         <div class="nav-link">
+                                            <div class="sb-nav-link-icon"><i class="fas fa-tachometer-alt"></i></div>
+                                            P : 
+                                        </div>
+                                    </td>
+                                    <td>
+                                         <input id="coords_P" value="0" style="width:60%" />
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <div class="nav-link">
+                                            <div class="sb-nav-link-icon"><i class="fas fa-tachometer-alt"></i></div>
+                                            R :
+                                        </div>
+                                    </td>
+                                    <td>
+                                         <input id="coords_R" value="0" style="width:60%" />
+                                    </td>
+                                </tr>
+                            </table>
+                            
+                            
+                            
+                             
+                            
+                         
+                            <div class="sb-sidenav-menu-heading">JOINT COORD</div>
+                              <table>
+                                <tr>
+                                    <td>
+                                        <div class="nav-link">
+                                            <div class="sb-nav-link-icon"><i class="fas fa-tachometer-alt"></i></div>
+                                            J1 
+                                        </div>
+                                    </td>
+                                    <td>
+                                       <input id="coords_J1" value="0" style="width:60%" />
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                         <div class="nav-link">
+                                            <div class="sb-nav-link-icon"><i class="fas fa-tachometer-alt"></i></div>
+                                            J2 
+                                        </div>
+                                    </td>
+                                    <td>
+                                         <input id="coords_J2" value="0" style="width:60%" />
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <div class="nav-link">
+                                            <div class="sb-nav-link-icon"><i class="fas fa-tachometer-alt"></i></div>
+                                            J3 
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <input id="coords_J3" value="0" style="width:60%" />
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <div class="nav-link">
+                                            <div class="sb-nav-link-icon"><i class="fas fa-tachometer-alt"></i></div>
+                                            J4
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <input id="coords_J4" value="0" style="width:60%" />
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                         <div class="nav-link">
+                                            <div class="sb-nav-link-icon"><i class="fas fa-tachometer-alt"></i></div>
+                                            J5 
+                                        </div>
+                                    </td>
+                                    <td>
+                                         <input id="coords_J5" value="0" style="width:60%" />
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <div class="nav-link">
+                                            <div class="sb-nav-link-icon"><i class="fas fa-tachometer-alt"></i></div>
+                                            J6 
+                                        </div>
+                                    </td>
+                                    <td>
+                                         <input id="coords_J6" value="0" style="width:60%" />
+                                    </td>
+                                </tr>
+                            </table>
+                       <%--     <a class="nav-link collapsed" href="#" data-bs-toggle="collapse" data-bs-target="#collapseLayouts" aria-expanded="false" aria-controls="collapseLayouts">
+                                <div class="sb-nav-link-icon"><i class="fas fa-columns"></i></div>
+                                Layouts
+                                <div class="sb-sidenav-collapse-arrow"><i class="fas fa-angle-down"></i></div>
+                            </a>
+                            <div class="collapse" id="collapseLayouts" aria-labelledby="headingOne" data-bs-parent="#sidenavAccordion">
+                                <nav class="sb-sidenav-menu-nested nav">
+                                    <a class="nav-link" href="layout-static.html">Static Navigation</a>
+                                    <a class="nav-link" href="layout-sidenav-light.html">Light Sidenav</a>
+                                </nav>
+                            </div>
+                            <a class="nav-link collapsed" href="#" data-bs-toggle="collapse" data-bs-target="#collapsePages" aria-expanded="false" aria-controls="collapsePages">
+                                <div class="sb-nav-link-icon"><i class="fas fa-book-open"></i></div>
+                                Pages
+                                <div class="sb-sidenav-collapse-arrow"><i class="fas fa-angle-down"></i></div>
+                            </a>
+                            <div class="collapse" id="collapsePages" aria-labelledby="headingTwo" data-bs-parent="#sidenavAccordion">
+                                <nav class="sb-sidenav-menu-nested nav accordion" id="sidenavAccordionPages">
+                                    <a class="nav-link collapsed" href="#" data-bs-toggle="collapse" data-bs-target="#pagesCollapseAuth" aria-expanded="false" aria-controls="pagesCollapseAuth">
+                                        Authentication
+                                        <div class="sb-sidenav-collapse-arrow"><i class="fas fa-angle-down"></i></div>
+                                    </a>
+                                    <div class="collapse" id="pagesCollapseAuth" aria-labelledby="headingOne" data-bs-parent="#sidenavAccordionPages">
+                                        <nav class="sb-sidenav-menu-nested nav">
+                                            <a class="nav-link" href="login.html">Login</a>
+                                            <a class="nav-link" href="register.html">Register</a>
+                                            <a class="nav-link" href="password.html">Forgot Password</a>
+                                        </nav>
+                                    </div>
+                                    <a class="nav-link collapsed" href="#" data-bs-toggle="collapse" data-bs-target="#pagesCollapseError" aria-expanded="false" aria-controls="pagesCollapseError">
+                                        Error
+                                        <div class="sb-sidenav-collapse-arrow"><i class="fas fa-angle-down"></i></div>
+                                    </a>
+                                    <div class="collapse" id="pagesCollapseError" aria-labelledby="headingOne" data-bs-parent="#sidenavAccordionPages">
+                                        <nav class="sb-sidenav-menu-nested nav">
+                                            <a class="nav-link" href="401.html">401 Page</a>
+                                            <a class="nav-link" href="404.html">404 Page</a>
+                                            <a class="nav-link" href="500.html">500 Page</a>
+                                        </nav>
+                                    </div>
+                                </nav>
+                            </div>--%>
+                      
+                        </div>
+                    </div>
+                    <div class="sb-sidenav-footer">
+                        <div class="small">Logged in as: admin</div>
+                        Robot Harvesting System
+                    </div>
+                </nav>
+            </div>
+            <div id="layoutSidenav_content" style="overflow-y:hidden">
+                <main>
+                    <div class="row" style="overflow:hidden">
+                        <div class="card col-md-2">
+                             <div class="card-header" style="text-align:center;">
+                                  <input type="button" style="text-align:center" value="紀錄座標" onclick="sendcoords()" />
+                             </div>
+                             <div class="card-body" style="overflow-x:scroll">
+                                  <table id="dataTable" style="overflow-x:scroll">
+                                       <thead>
+                                            <tr>
+                                              <th>times</th>
+                                              <th>x</th>
+                                              <th>y </th>
+                                              <th>z </th>
+                                              <th>w </th>
+                                              <th>p </th>
+                                              <th>r </th>
+                                            </tr>
+                                        </thead>
+                                       <tbody style="overflow-x:scroll"></tbody>
+                                  
+                                  </table>
+                             </div>
+                            
+                        </div>
+                          <div class="card col-md-3">
+                              <div class="card-header" style="text-align:center;">
+
+                                    <div class="badge bg-primary text-wrap" style="text-align:center;width: 6rem;height:3rem">
+                                        <br/>
+                                        Coords 
+                                    </div>
+
+                                </div>
+                              <asp:Button ID="Button1" runat="server" style="display:none" Text="Button" OnClick="Button2_Click" />
+                                <div class="card-body">
+                                    <asp:TextBox ID="TextBox1" runat="server" style="display:none"></asp:TextBox>
+                                                <table style="width:100%;" id="coords_table">
+                                                <tr>
+                                                    <th></th>
+                                                    <th></th>
+                                                    <th></th>
+                                                    <th></th>
+                                                </tr>
+                                                <tr id="f">
+                                                    <td style="display:none"><p id="resultx" >0</p></td>
+                                                    <td><input type="button" class="X"  value="X+" ontouchstart="count_Joint_add(this)" ontouchend="count_down(this)" onmousedown="count_Joint_add(this)" onmouseup="count_down(this)"   onmouseout="count_stop(this)"  /></td>
+                                                    <td  style="padding-top:20px;" >
+                                                        <p class="wheellisten" id="P1" runat="server" >0</p>
+                                                    </td>
+                                                    <td><input type="button" class="X"  value="X-" ontouchstart="count_Joint_min(this)" ontouchend="count_down(this)" onmousedown="count_Joint_min(this)" onmouseup="count_down(this)"   onmouseout="count_stop(this)"  /></td>
+                                                </tr>
+                                                <tr>
+                                                    <td><p id="resulty">0</p></td>
+                                                    <td><input type="button" class="Y" value="Y+"  ontouchstart="count_Joint_add(this)" ontouchend="count_down(this)" onmousedown="count_Joint_add(this)" onmouseup="count_down(this)"   onmouseout="count_stop(this)"  /></td>
+                                                    <td  style="padding-top:20px;">
+                                                        <p class="wheellisten" id="P2" runat="server" >0</p>
+                                                    </td>
+                                                    <td><input type="button" class="Y" value="Y-"  ontouchstart="count_Joint_min(this)" ontouchend="count_down(this)" onmousedown="count_Joint_min(this)" onmouseup="count_down(this)"   onmouseout="count_stop(this)"  /></td>
+                                                </tr>
+                                                <tr>
+                                                    <td><p id="resultz">0</p></td>
+                                                    <td><input type="button" class="Z" value="Z+"  ontouchstart="count_Joint_add(this)" ontouchend="count_down(this)" onmousedown="count_Joint_add(this)" onmouseup="count_down(this)"  onmouseout="count_stop(this)"  /></td>
+                                                    <td  style="padding-top:20px;">
+                                                        <p class="wheellisten" id="P3" runat="server" >0</p>
+                                                    </td>
+                                                    <td><input type="button" class="Z" value="Z-"  ontouchstart="count_Joint_min(this)" ontouchend="count_down(this)" onmousedown="count_Joint_min(this)" onmouseup="count_down(this)"  onmouseout="count_stop(this)"  /></td>
+                                                </tr>
+                                                <tr>
+                                                    <td><p id="resultw">0</p></td>
+                                                    <td><input type="button" class="W" value="W+"  ontouchstart="count_Joint_add(this)" ontouchend="count_down(this)" onmousedown="count_Joint_add(this)" onmouseup="count_down(this)"  onmouseout="count_stop(this)"  /></td>
+                                                    <td  style="padding-top:20px;">
+                                                        <p class="wheellisten" id="P4" runat="server" >0</p>
+                                                    </td>
+                                                    <td><input type="button" class="W" value="W-"  ontouchstart="count_Joint_min(this)" ontouchend="count_down(this)" onmousedown="count_Joint_min(this)" onmouseup="count_down(this)"  onmouseout="count_stop(this)"  /></td>
+                                                </tr>
+                                                <tr>
+                                                    <td><p id="resultp">0</p></td>
+                                                    <td><input type="button" class="P" value="P+"  ontouchstart="count_Joint_add(this)" ontouchend="count_down(this)" onmousedown="count_Joint_add(this)" onmouseup="count_down(this)"  onmouseout="count_stop(this)"  /></td>
+                                                    <td  style="padding-top:20px;">
+                                                        <p class="wheellisten" id="P5" runat="server" >0</p>
+                                                    </td>
+                                                    <td><input type="button" class="P" value="P-"  ontouchstart="count_Joint_min(this)" ontouchend="count_down(this)" onmousedown="count_Joint_min(this)" onmouseup="count_down(this)"  onmouseout="count_stop(this)"  /></td>
+                                                </tr>
+                                                <tr>
+                                                    <td><p id="resultr">0</p></td>
+                                                    <td><input type="button" class="R" value="R+"  ontouchstart="count_Joint_add(this)" ontouchend="count_down(this)" onmousedown="count_Joint_add(this)" onmouseup="count_down(this)"  onmouseout="count_stop(this)"  /></td>
+                                                    <td  style="padding-top:20px;">
+                                                        <p class="wheellisten" id="P6" runat="server" >0</p>
+                                                    </td>
+                                                    <td><input type="button" class="R" value="R-"  ontouchstart="count_Joint_min(this)" ontouchend="count_down(this)" onmousedown="count_Joint_min(this)" onmouseup="count_down(this)"  onmouseout="count_stop(this)"  /></td>
+                                                </tr>
+                                            </table>
+                                </div>
+                         
+                          </div>
+                          <div class="card col-md-3">
+                               <div class="card-header" style="text-align:center">
+                                    <div class="badge bg-success text-wrap" style="width: 6rem;height:3rem">
+                                        <br/>
+                                        Joint°
+                                    </div>
+
+                                </div>
+                            <div class="card-body">
+
+                              <table style="width:100%;" id="joint_table">
+                                                <tr>
+                                                    <th></th>
+                                                    <th></th>
+                                                    <th></th>
+                                                    <th></th>
+                                                </tr>
+                                                <tr id="s">
+                                                    <td><p id="result">0</p></td>
+                                                    <td><input type="button" class="J1"  value="J1+" ontouchstart="count_Joint_add(this)" ontouchend="count_down(this)" onmousedown="count_Joint_add(this)" onmouseup="count_down(this)" onmouseout="count_stop(this)"  /></td>
+                                                    <td  style="padding-top:20px;">
+                                                        <p class="wheellisten" id="J1value" runat="server" >0</p>
+                                                    </td>
+                                                    <td><input type="button" class="J1"  value="J1-"  ontouchstart="count_Joint_min(this)" ontouchend="count_down(this)" onmousedown="count_Joint_min(this)" onmouseup="count_down(this)"  onmouseout="count_stop(this)" /></td>
+                                                </tr>
+                                                <tr>
+                                                    <td><p id="result2">0</p></td>
+                                                    <td><input type="button" class="J2" value="J2+" ontouchstart="count_Joint_add(this)" ontouchend="count_down(this)" onmousedown="count_Joint_add(this)" onmouseup="count_down(this)"  onmouseout="count_stop(this)" /></td>
+                                                    <td  style="padding-top:20px;">
+                                                        <p class="wheellisten" id="J2value" runat="server" >0</p>
+                                                    </td>
+                                                    <td><input type="button" class="J2" value="J2-"  ontouchstart="count_Joint_min(this)" ontouchend="count_down(this)" onmousedown="count_Joint_min(this)" onmouseup="count_down(this)"  onmouseout="count_stop(this)"  /></td>
+                                                </tr>
+                                                <tr>
+                                                    <td><p id="result3">0</p></td>
+                                                    <td><input type="button" class="J3" value="J3+" ontouchstart="count_Joint_add(this)" ontouchend="count_down(this)" onmousedown="count_Joint_add(this)" onmouseup="count_down(this)"  onmouseout="count_stop(this)"  /></td>
+                                                    <td  style="padding-top:20px;">
+                                                        <p class="wheellisten" id="J3value" runat="server" >0</p>
+                                                    </td>
+                                                    <td><input type="button" class="J3" value="J3-"  ontouchstart="count_Joint_min(this)" ontouchend="count_down(this)" onmousedown="count_Joint_min(this)" onmouseup="count_down(this)"  onmouseout="count_stop(this)"  /></td>
+                                                </tr>
+                                                <tr>
+                                                    <td><p id="result4">0</p></td>
+                                                    <td><input type="button" class="J4" value="J4+" ontouchstart="count_Joint_add(this)" ontouchend="count_down(this)" onmousedown="count_Joint_add(this)" onmouseup="count_down(this)"  onmouseout="count_stop(this)"  /></td>
+                                                    <td  style="padding-top:20px;">
+                                                        <p class="wheellisten" id="J4value" runat="server" >0</p>
+                                                    </td>
+                                                    <td><input type="button" class="J4" value="J4-"  ontouchstart="count_Joint_min(this)" ontouchend="count_down(this)" onmousedown="count_Joint_min(this)" onmouseup="count_down(this)"  onmouseout="count_stop(this)"  /></td>
+                                                </tr>
+                                                <tr>
+                                                    <td><p id="result5">0</p></td>
+                                                    <td><input type="button" class="J5" value="J5+" ontouchstart="count_Joint_add(this)" ontouchend="count_down(this)" onmousedown="count_Joint_add(this)" onmouseup="count_down(this)"  onmouseout="count_stop(this)"  /></td>
+                                                    <td  style="padding-top:20px;">
+                                                        <p class="wheellisten" id="J5value" runat="server" >0</p>
+                                                    </td>
+                                                    <td><input type="button" class="J5" value="J5-"  ontouchstart="count_Joint_min(this)" ontouchend="count_down(this)" onmousedown="count_Joint_min(this)" onmouseup="count_down(this)"  onmouseout="count_stop(this)"  /></td>
+                                                </tr>
+                                                <tr>
+                                                    <td><p id="result6">0</p></td>
+                                                    <td><input type="button" class="J6" value="J6+" ontouchstart="count_Joint_add(this)" ontouchend="count_down(this)" onmousedown="count_Joint_add(this)" onmouseup="count_down(this)"  onmouseout="count_stop(this)"  /></td>
+                                                    <td  style="padding-top:20px;">
+                                                        <p class="wheellisten" id="J6value" runat="server" >0</p>
+                                                    </td>
+                                                    <td><input type="button" class="J6" value="J6-"  ontouchstart="count_Joint_min(this)" ontouchend="count_down(this)" onmousedown="count_Joint_min(this)" onmouseup="count_down(this)"  onmouseout="count_stop(this)"  /></td>
+                                                </tr>
+                                            </table>                            </div>
+                         
+                          </div>
+                          <div class="card col-md-4">
+                            <div class="card-header" style="text-align:center">
+                                    
+                                    <input id="check_calibration" type="button" value="開啟" onclick="ajaxbtn(this)" />
+
+                                </div>
+                            <div class="card-body">
+                             <img id="gle"  onerror="imgDisplay()" style="width:100%;position:relative;" />
+                                </div>
+                         
+                          </div>
+                   
+                    </div>
+                 
+                </main>
+                
+                <footer class="py-4 bg-light mt-auto">
+                    <div class="container-fluid px-4">
+                        <div class="d-flex align-items-center justify-content-between small">
+                            <div class="text-muted">Copyright &copy; HSK 2023</div>
+                            <div>
+                                <a href="#">Privacy Policy</a>
+                                &middot;
+                                <a href="#">Terms &amp; Conditions</a>
+                            </div>
+                        </div>
+                    </div>
+
+                     <div class="select_card col-xl-12 col-md-12" style="display:none">
+                        <div class="card bg-success text-white mb-4">
+                            <div class="card-body">Success Card</div>
+                            <div class="card-footer d-flex align-items-center justify-content-between">
+                                <p class="result"></p>
+                            </div>
+                        </div>
+                    </div>
+
+                </footer>
+            </div>
+         
+        </div>
+    
+              </form>
+    <script src="Scripts/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+        <script src="Scripts/scripts.js"></script>
+        <script src="Scripts/datatables-simple-demo.js"></script>
+    <script>
+        function ajaxbtn(it) {
+
+            if (it.value == "關閉") {
+                $.ajax({
+                    type: "GET",
+                    url: hostname + "close",
+
+                    contentType: "application/json; charset=utf-8",
+                    dataType: "json",
+                    success: function (data) {
+                        console.log(data);
+                    },
+                    error: function () {
+                        // 请求失败后的处理
+                        console.log("请求失败");
+                    }
+                });
+                it.value = "開啟";
+            } else {
+
+                $.ajax({
+                    type: "GET",
+                    url: hostname + "calibration",
+
+                    contentType: "application/json; charset=utf-8",
+                    dataType: "json",
+                    success: function (data) {
+                        console.log(data);
+
+                        //TODO : 2023/09/07 把剩下關節移動設定完成
+
+                    },
+                    error: function () {
+                        // 请求失败后的处理
+                        console.log("请求失败");
+                    }
+                });
+
+                it.value = "關閉";
+            }
+           
+        }
+        function imgDisplay() {
+            var board = document.getElementById("gle");
+            board.src = "loading1.gif";
+            document.getElementById("labelarea").innerHTML = "";
+            document.getElementById("check_calibration").value = "開啟"
+        }
+    </script>
+</body>
+</html>

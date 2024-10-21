@@ -1,0 +1,1399 @@
+﻿<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+    <title>Fruit Detect</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <meta name="description" content="" />
+    <meta name="author" content="" />
+    <link href="static/Content/styles.css" rel="stylesheet" />
+    <script src="static/Scripts/all.js" crossorigin="anonymous"></script>
+    <script src="static/Scripts/jquery-3.4.1.min.js"></script>
+    <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r79/three.min.js"></script> -->
+
+    <script src="static/js/roslib.min.js"></script>
+    <script src="static/js/ros3d.min.js"></script>
+
+    <style>
+        .red-dot {
+            position: relative;
+            top:2px;
+            width: 20px;            /* 紅點的寬度 */
+            height: 20px;           /* 紅點的高度 */
+            background-color: green;  /* 紅點的顏色 */
+            border-radius: 50%;     /* 圓形 */
+            display: inline-block;  /* 讓 div 成為行內元素 */
+        }
+        #imagearea{
+            width:100%;
+            left:5%;
+            position:relative;
+        }
+        #imagearea td{
+            text-align:center;
+            font-size:3vmin;
+            border:0px solid;
+        }
+        .slider-container {
+    position: relative;
+    width: 20px; /* 調整滑塊的寬度 */
+    height: 40vmin; /* 調整滑塊的高度 */
+}
+#control_panel{
+    width: 90%;
+    left: 5%;
+}
+#control_panel td{
+    border: 1px solid;
+    padding: 10px;
+    text-align: center;
+    width: 30%;
+    height: 50px;
+    background-color: #f1f1f1;
+    font-size: 1.5vmin;
+    color: black;
+}
+#control_panel td:hover{
+    background: dimgray;
+}
+
+.vertical-slider {
+    writing-mode: bt-lr; /* 垂直寫入模式，將水平滑塊轉為垂直 */
+    appearance: slider-vertical; /* 使用垂直滑塊外觀 */
+    width: 100%;
+    height: 90%;
+    background: #f1f1f1; /* 滑塊的背景顏色 */
+    border: none;
+    outline: none;
+    cursor: pointer;
+}
+
+.slider-value {
+    position: absolute;
+    bottom: -20px; /* 調整值的位置 */
+    left: 50%; /* 將值置於滑塊中間 */
+    transform: translateX(-50%); /* 使值水平居中對齊 */
+}
+
+#urdf_panel td{
+    position: relative;
+    border: 0px solid;
+    padding-left: 25px;
+    text-align: center;
+}
+
+
+
+
+    </style>
+    <script>
+        let intervalId = null;
+        let ros = null;
+        let jointState = null;
+        let jointStatePub = null;
+        let ambientLight = null;
+
+        $(document).ready(function () {
+            //check_deg();
+
+            //讀取模型清單
+            $.ajax({
+                type: "GET",
+                url: hostname + "modellist",
+
+                contentType: "application/json; charset=utf-8",
+                dataType: "json",
+                success: function (data) {
+                    console.log(data["model"]);
+                    document.getElementById('detectmodelselect').parentElement.querySelector("button").innerHTML = data["curmod"];
+                    for (var o = 0; o < data["model"].length; o++) {
+                        
+                        var thing = document.createElement('li');
+
+                        thing.className = "dropdown-item";
+                        thing.innerHTML = data["model"][o];
+                        thing.addEventListener('click', function () {
+                            console.log(this.parentElement)
+                            this.parentElement.parentElement.querySelector('button').innerText = this.innerHTML;
+                            $.ajax({
+                                type: "POST",
+                                url: hostname + "modellist",
+                                data: JSON.stringify({
+                                    "data": this.innerHTML,
+                                }),
+                                contentType: "application/json; charset=utf-8",
+                                dataType: "json",
+                                success: function (response) {
+                                    console.log(response);
+                                }
+                            });
+                        });
+                        //<li><a class="dropdown-item" href="#">Action</a></li>
+                        document.getElementById('detectmodelselect').appendChild(thing);
+                    }
+                },
+                error: function () {
+                    // 请求失败后的处理
+                    console.log("请求失败");
+                }
+            });
+            //初始化
+            $.ajax({
+                type: "GET",
+                url: hostname + "initial_parameter",
+
+                contentType: "application/json; charset=utf-8",
+                dataType: "json",
+                success: function (data) {
+                    console.log(data["X"]);
+                    console.log(data["Y"]);
+                    console.log(data["Z"]);
+                    console.log(data["mode"]);
+                    console.log(data["max_value"]);
+                    console.log(data["zeroing"]);
+                    console.log(data["stop"]);
+                    console.log(data["cam_Ready"]);
+                    document.getElementById("coords_X").value = data["X"];//Math.round(JSON.parse(response.d).x * 1000) / 1000;
+                    document.getElementById("coords_Y").value = data["Y"];//Math.round(JSON.parse(response.d).y * 1000) / 1000;
+                    document.getElementById("coords_Z").value = data["Z"];//Math.round(JSON.parse(response.d).z * 1000) / 1000;
+                    if(data["mode"] == "0"){
+                        document.getElementById("spin_mode").innerHTML = "前面";
+                        document.getElementById("mode_tran").src = "static/img/front.png";
+                    }
+					else if(data["mode"] == "1"){
+                        document.getElementById("spin_mode").innerHTML = "右邊";
+                        document.getElementById("mode_tran").src = "static/img/right.png";
+                    }
+					else if(data["mode"] == "2"){
+                        document.getElementById("spin_mode").innerHTML = "後面";
+                        document.getElementById("mode_tran").src = "static/img/back.png";
+                    }else if(data["mode"] == "3"){
+                        document.getElementById("spin_mode").innerHTML = "左邊";
+                        document.getElementById("mode_tran").src = "static/img/left.png";
+						console.log("左邊");
+                    }
+                   
+                    if(data["cam_Ready"] == "True"){
+                        intervalId = setInterval(updateWebcamImage, 1000);
+                        document.getElementById("cambutton").value = "關閉";
+                    }else{
+                        document.getElementById("cambutton").value = "開啟";
+                        clearInterval(intervalId);
+                    }
+                    for(var i =0;i < document.getElementById("mode_select").childNodes.length;i++){
+                        if(document.getElementById("mode_select").childNodes[i].nodeName == "LI"){
+                            document.getElementById("mode_select").childNodes[i].addEventListener('click', function () {
+                                console.log(this);
+                                
+                                
+                            $.ajax({
+                                type: "POST",
+                                url: hostname + "mode_check",
+                                data: JSON.stringify({
+                                    "data": this.tabIndex,
+                                }),
+                                contentType: "application/json; charset=utf-8",
+                                dataType: "json",
+                                success: function (response) {
+									if(response["move"] != "fail"){
+										if(this.tabIndex == 1){
+											document.getElementById("mode_tran").src = "static/img/right.png";
+											document.getElementById("spin_mode").innerHTML = "右邊";
+										}else if(this.tabIndex == 2){
+											document.getElementById("mode_tran").src = "static/img/back.png";
+											document.getElementById("spin_mode").innerHTML = "後面";
+										}
+										else if(this.tabIndex == 3){
+											document.getElementById("mode_tran").src = "static/img/left.png";
+											document.getElementById("spin_mode").innerHTML = "左邊";
+										}
+										else if(this.tabIndex == 0){
+											document.getElementById("mode_tran").src = "static/img/front.png";
+											document.getElementById("spin_mode").innerHTML = "前面";
+										}
+									}
+                                    else{
+                                        alert("高度限制，無法旋轉");
+                                    }
+                                    console.log(response);
+                                }
+                            });
+                        });
+                        }
+                    }
+            
+                    // document.getElementById('detectmodelselect').parentElement.querySelector("button").innerHTML = data["curmod"];
+                    // for (var o = 0; o < data["model"].length; o++) {
+                        
+                    //     var thing = document.createElement('li');
+
+                    //     thing.className = "dropdown-item";
+                    //     thing.innerHTML = data["model"][o];
+                    //     thing.addEventListener('click', function () {
+                    //         console.log(this.parentElement)
+                    //         this.parentElement.parentElement.querySelector('button').innerText = this.innerHTML;
+                    //         $.ajax({
+                    //             type: "POST",
+                    //             url: hostname + "modellist",
+                    //             data: JSON.stringify({
+                    //                 "data": this.innerHTML,
+                    //             }),
+                    //             contentType: "application/json; charset=utf-8",
+                    //             dataType: "json",
+                    //             success: function (response) {
+                    //                 console.log(response);
+                    //             }
+                    //         });
+                    //     });
+                    //     //<li><a class="dropdown-item" href="#">Action</a></li>
+                    //     document.getElementById('detectmodelselect').appendChild(thing);
+                    //}
+                },
+                error: function () {
+                    // 请求失败后的处理
+                    console.log("请求失败");
+                }
+            });
+           
+            
+        });
+    </script>
+</head>
+<body class="sb-nav-fixed">
+    <form id="form1" runat="server">
+       <nav class="sb-topnav navbar navbar-expand navbar-dark bg-dark">
+            <!-- Navbar Brand-->
+            <a class="navbar-brand ps-3" href="#">Harvesting Robot</a>
+            <!-- Sidebar Toggle-->
+            &nbsp;&nbsp;
+            <button class="btn btn-link btn-sm order-1 order-lg-0 me-4 me-lg-0" id="sidebarToggle" href="#!"><i class="fas fa-bars"></i></button>
+            <!-- Navbar Search-->
+           <div class="d-none d-md-inline-block form-inline ms-auto me-0 me-md-3 my-2 my-md-0">
+
+
+            </div>
+            <!-- Navbar-->
+            <ul class="navbar-nav ms-auto ms-md-0 me-3 me-lg-4">
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" id="navbarDropdown" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false"><i class="fas fa-user fa-fw"></i></a>
+                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown">
+                        <li><a class="dropdown-item" href="#">Settings</a></li>
+                        <li><a class="dropdown-item" href="#">Detecting</a></li>
+                        <li><hr class="dropdown-divider" /></li>
+                        <li><a class="dropdown-item" href="#!">Logout</a></li>
+                    </ul>
+                </li>
+            </ul>
+        </nav>
+        <div id="layoutSidenav">
+            <div id="layoutSidenav_nav">
+                <nav class="sb-sidenav accordion sb-sidenav-dark" id="sidenavAccordion" >
+                    <div class="sb-sidenav-menu" >
+                        <div class="nav">
+                             <br/>
+                            <div class="status-image" style="border:1 px solid">
+                                
+                            
+                                &nbsp;&nbsp;&nbsp;模式 : 
+                                <div class="btn-group">
+                                    <button id="spin_mode" type="button" class="btn btn-info dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                                      右邊
+                                    </button>
+                                    <ul id="mode_select" class="dropdown-menu">
+                                        <li class="dropdown-item" id="D1" tabindex="1">向右</li>
+                                        <li class="dropdown-item" id="D2" tabindex="3">向左</li>
+                                        <li class="dropdown-item" id="D3" tabindex="0">向前</li>
+                                        <li class="dropdown-item" id="D4" tabindex="2">向後</li>
+                                    </ul>
+                                  </div>
+                                  &nbsp;&nbsp;&nbsp;機器狀態 : &nbsp;<div class="red-dot"></div>
+                                  <br/><br/>
+                                <img id="mode_tran" onclick="trans_main_board()" src="static/img/right.png" style="width:80%;position:relative;left:10%"/>
+                            </div>  
+                            <div class="sb-sidenav-menu-heading">World Coord</div>
+                            <br/>
+                            <input class="btn btn-danger" type="button" id="opengrap" value="緊急停止" onclick="subt(this)" />
+                            <br/>
+                            <input class="btn btn-info" type="button" id="opengrap" value="歸零" onclick="reset_coord(this)" />
+                            <br/>
+
+                            <table>
+                                <tr>
+                                    <td>
+                                        <div class="nav-link">
+                                            <div class="sb-nav-link-icon"><i class="fas fa-tachometer-alt"></i></div>
+                                            X :
+                                        </div>
+                                    </td>
+                                    <td>
+                                       <input id="coords_X" value="0" style="width:60%" />
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                         <div class="nav-link">
+                                            <div class="sb-nav-link-icon"><i class="fas fa-tachometer-alt"></i></div>
+                                            Y :
+                                        </div>
+                                    </td>
+                                    <td>
+                                         <input id="coords_Y" value="0" style="width:60%" />
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <div class="nav-link">
+                                            <div class="sb-nav-link-icon"><i class="fas fa-tachometer-alt"></i></div>
+                                            Z :
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <input id="coords_Z" value="0" style="width:60%" />
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <div class="nav-link">
+                                            <div class="sb-nav-link-icon"><i class="fas fa-tachometer-alt"></i></div>
+                                            W: 
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <input id="coords_W" value="0" style="width:60%" />
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <!-- <td>
+                                         <div class="nav-link">
+                                            <div class="sb-nav-link-icon"><i class="fas fa-tachometer-alt"></i></div>
+                                            P : 
+                                        </div>
+                                    </td>
+                                    <td>
+                                         <input id="coords_P" value="0" style="width:60%" />
+                                    </td> -->
+                                </tr>
+                                <tr>
+                                    <!-- <td>
+                                        <div class="nav-link">
+                                            <div class="sb-nav-link-icon"><i class="fas fa-tachometer-alt"></i></div>
+                                            R :
+                                        </div>
+                                    </td>
+                                    <td>
+                                         <input id="coords_R" value="0" style="width:60%" />
+                                    </td> -->
+                                </tr>
+                            </table>
+                            <br/>
+                            <input class="btn btn-success" type="button" id="settcoord" value="座標移動" onclick="setting_coord(this)" />
+                            <br/>
+                            <table id="control_panel">
+
+                                <tr>
+                                    <td onclick="tab_Move_spin(this)">W+</td>
+                                    <td colspan="2" onclick="tab_Move(this)">X+</td>
+                                    <td onclick="tab_Move_spin(this)">W-</td>
+                                </tr>
+                                <tr>
+                                    <td rowspan="2" onclick="tab_Move(this)">Y+</td>
+                                    <td colspan="2" onclick="tab_Move(this)">Z+</td>
+                                    <td rowspan="2" onclick="tab_Move(this)">Y-</td>
+                                    
+                                </tr>
+                                <tr>
+                                    <td colspan="2" onclick="tab_Move(this)">Z-</td>
+                                    
+                                </tr>
+                                <tr>
+                                    <td></td>
+                                    <td colspan="2" onclick="tab_Move(this)">X-</td>
+                                    <td></td>
+                                </tr>
+                            </table>
+                            
+                            
+                            
+                             
+                            
+                         
+                            <!-- <div class="sb-sidenav-menu-heading">JOINT COORD</div>
+                              <table>
+                                <tr>
+                                    <td>
+                                        <div class="nav-link">
+                                            <div class="sb-nav-link-icon"><i class="fas fa-tachometer-alt"></i></div>
+                                            J1 
+                                        </div>
+                                    </td>
+                                    <td>
+                                       <input id="coords_J1" value="0" style="width:60%" />
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                         <div class="nav-link">
+                                            <div class="sb-nav-link-icon"><i class="fas fa-tachometer-alt"></i></div>
+                                            J2 
+                                        </div>
+                                    </td>
+                                    <td>
+                                         <input id="coords_J2" value="0" style="width:60%" />
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <div class="nav-link">
+                                            <div class="sb-nav-link-icon"><i class="fas fa-tachometer-alt"></i></div>
+                                            J3 
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <input id="coords_J3" value="0" style="width:60%" />
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <div class="nav-link">
+                                            <div class="sb-nav-link-icon"><i class="fas fa-tachometer-alt"></i></div>
+                                            J4
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <input id="coords_J4" value="0" style="width:60%" />
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                         <div class="nav-link">
+                                            <div class="sb-nav-link-icon"><i class="fas fa-tachometer-alt"></i></div>
+                                            J5 
+                                        </div>
+                                    </td>
+                                    <td>
+                                         <input id="coords_J5" value="0" style="width:60%" />
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <div class="nav-link">
+                                            <div class="sb-nav-link-icon"><i class="fas fa-tachometer-alt"></i></div>
+                                            J6 
+                                        </div>
+                                    </td>
+                                    <td>
+                                         <input id="coords_J6" value="0" style="width:60%" />
+                                    </td>
+                                </tr>
+                            </table> -->
+                            
+                      
+                        </div>
+                    </div>
+                    <div class="sb-sidenav-footer">
+                        <div class="small">Logged in as: admin</div>
+                        Robot Harvesting System
+                    </div>
+                </nav>
+            </div>
+            <div id="layoutSidenav_content">
+                <main>
+                    <div class="container-fluid px-4">
+                       
+                       
+                        <div class="card mb-4">
+                            <div class="card-header">
+                                <i class="fas fa-table me-1"></i>
+                                水果偵測&nbsp;&nbsp;
+                                <input class="btn btn-outline-success " type="button" value="讀標" onclick="readlebel()" />
+                                <input class="btn btn-outline-danger "type="button" id="cambutton" value="開啟" onclick="ajaxbtn(this)" />
+                                <input class="btn btn-warning" type="button" id="autograp" value="自動" onclick="AutoMode(this)" />
+                                <input class="btn btn-success" type="button" id="opengrap" value="合爪" onclick="OpenGrap(this)" />
+
+                                <!-- Example single danger button -->
+                                <div class="btn-group">
+                                  <button type="button" class="btn btn-info dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                                    Detect Model
+                                  </button>
+                                  <ul id="detectmodelselect" class="dropdown-menu">
+                                  
+                                  </ul>
+                                </div>
+                    
+                                
+                            </div>
+                            <div class="card-body">
+                       
+                                    <table id="imagearea">
+                                        
+                                        <tr>
+                                            <td>閾值</td>
+                                            <td>深度影像</td>
+                                            <td>偵測結果</td>
+                                        </tr>
+                                        <tr>
+                                            <td rowspan="2" style="padding:20px;">
+                                                <div class="slider-container">
+                                                    <input type="range" id="vertical-slider" class="vertical-slider" min="0" max="100" step="1" />
+                                                    <div id="slider-value" class="slider-value">50</div>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td colspan="2">
+                                                  <img id="gle"   onerror="imgDisplay()" style="width:100%;position:relative;" />
+
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td id="labelarea" colspan="3" style="text-align:left">
+                                               
+                                                
+                                            </td>
+                                        </tr>
+                                    </table>
+                                    <div id="control_panels"  style="display: none;">
+
+                                        <div id="urdf" style="width: 1000px; height: 600px;"></div>
+                                        <table id="urdf_panel">
+                                        
+                                            <tr>
+                                                <td>
+                                                    <label for="joint_x">X 軸: </label>
+    
+                                                </td>
+                                                <td>
+                                                    <br/>
+                                                    <br/>
+                                                    <input type="range" id="joint_x" name="joint_x" min="0" max="0.25" step="0.001" value="0" oninput="updateJointR()">
+                                                    <p id="joint_x_value">0</p>
+                                                </td>
+                                                
+                                            </tr>
+
+                                            <tr>
+                                                <td>
+                                                    <label for="joint_y">Y 軸: </label>
+                                                </td>
+                                                <td>
+                                                    <br/>
+                                                    <br/>
+                                                    <input type="range" id="joint_y" name="joint_y" min="0" max="0.2" step="0.001" value="0" oninput="updateJointR()">
+                                                    <p id="joint_y_value">0</p>
+                                                </td>
+                                            </tr>
+                                              <tr>
+                                                <td>
+                                                    <label for="joint_z">Z 軸: </label>
+                                                </td>
+                                                <td>
+                                                    <br/>
+                                                    <br/>
+                                                    <input type="range" id="joint_z" name="joint_z" min="0" max="0.3" step="0.001" value="0" oninput="updateJointR()">
+                                                    <p id="joint_z_value">0</p>
+                                                </td>
+                                              </tr>  
+                                              <tr>
+                                                <td>
+                                                    <label for="joint_r">R 軸 (旋轉): </label>
+                                                </td>
+                                                <td>
+                                                    <br/>
+                                                    <br/>
+                                                    <input type="range" id="joint_r" name="joint_r" min="-3.14" max="3.14" step="1.57" value="0" oninput="updateJointR()"> 
+                                                    <p id="joint_r_value">0</p>
+                                                </td>
+                                              </tr>
+                                                <td>
+                                                    <label for="joint_g">G 軸 (旋轉): </label>
+                                                </td>
+                                                <td>  
+                                                    <br/>
+                                                    <br/>
+                                                    <input type="range" id="joint_g" name="joint_g" min="-3.14" max="3.14" step="0.01" value="0" oninput="updateJointR()">                                                 
+                                                    <p id="joint_g_value">0</p>
+                                                </td>
+                                            </tr>     
+    
+                                        </table>
+                                    </div>
+                                    
+                            </div>
+                            
+                            <script>
+                                // 連接到 ROSBridge WebSocket
+                                ros = new ROSLIB.Ros({
+                                  url: 'ws://192.168.2.101:9090'  // 使用你的 ROSBridge 伺服器
+                                });
+                            
+                                ros.on('connection', function() {
+                                  console.log('Connected to websocket server.');
+                                });
+                            
+                                ros.on('error', function(error) {
+                                  console.log('Error connecting to websocket server: ', error);
+                                });
+                            
+                                ros.on('close', function() {
+                                  console.log('Connection to websocket server closed.');
+                                });
+                                // 創建 JointState 消息
+                                jointState = new ROSLIB.Message({
+                                    header: {
+                                    stamp: {
+                                        secs: 0,
+                                        nsecs: 0
+                                    }
+                                    },
+                                    name: ['X', 'Y', 'Z', 'R', 'G','front_right_wheel','front_left_wheel','rear_right_wheel','rear_left_wheel'],  // 與你的 URDF 中的關節名稱相匹配
+                                    position: [0, 0, 0, 0, 0,0,0,0,0],  // 對應的關節位置
+                                    velocity: [],
+                                    effort: []
+                                });
+                                // 發布者
+                                jointStatePub = new ROSLIB.Topic({
+                                    ros: ros,
+                                    name: '/joint_states',
+                                    messageType: 'sensor_msgs/JointState'
+                                });
+                                // 創建一個視圖器來顯示 URDF 模型
+                                var viewer = new ROS3D.Viewer({
+                                  divID : 'urdf',
+                                  width : 1000,
+                                  height : 600,
+                                  antialias : true,
+                                  background: '#010101',  // 背景顏色
+                               
+                                });
+
+                                // 添加坐標軸
+                                viewer.addObject(new ROS3D.Grid({color:'#0181c4', 
+                                                   num_cells: 20,  // 定義網格的大小
+                                                   cellSize: 0.5   // 每個單位的大小
+                                                   }));
+                                
+                            
+                                
+                                // 使用 TF Client 接收機器人狀態
+                                var tfClient = new ROSLIB.TFClient({
+                                  ros : ros,
+                                  fixedFrame : 'base_link', // 固定框架，根據你的機器人命名進行調整
+                                  angularThres : 0.01,
+                                  transThres : 0.01,
+                                  rate : 10.0
+                                });                                                      
+                                // 使用 URDF Client 獲取機器人模型
+                                var urdfClient = new ROS3D.UrdfClient({
+                                  ros : ros,
+                                  tfClient : tfClient,
+                                  path : 'http://192.168.2.101:8000/',  // 如果你的 URDF 需要從伺服器加載
+                                  rootObject : viewer.scene,
+                                  
+                                });
+                             
+                                //======================================================================================                                   
+                              
+                                //======================================================================================                                   
+                                  // 使用 TF Client 接收機器人狀態
+                                var tfClient_Point = new ROSLIB.TFClient({
+                                 ros : ros,
+                                  fixedFrame : '/base_link', // 固定框架，根據你的機器人命名進行調整
+                                  angularThres : 0.01,
+                                  transThres : 0.01,
+                                  rate : 10.0
+                                });
+                                
+                                 // 使用 URDF Client 獲取機器人模型
+                                var cludClient = new ROS3D.PointCloud2({
+                                  ros : ros,
+                                  tfClient : tfClient_Point,
+                                  topic : '/cur_scan_in_map',  // 如果你的 URDF 需要從伺服器加載
+                                  rootObject : viewer.scene,
+                                  material:{size:0.05,color:0xff0000},
+                                  max_pts:5000000,
+                                   
+                                });
+                                var tfClient_map = new ROSLIB.TFClient({
+                                 ros : ros,
+                                  fixedFrame : '/map', // 固定框架，根據你的機器人命名進行調整
+                                  angularThres : 0.01,
+                                  transThres : 0.01,
+                                  rate : 10.0
+                                });
+                                
+                                 // 使用 URDF Client 獲取機器人模型
+                                 var mapClient = new ROS3D.OccupancyGridClient({
+                                    ros: ros,
+                                    tfClient: tfClient_map,
+                                    topic: '/prior_map',
+                                    rootObject: viewer.scene,
+                                    material:{size:0.1,color:0xff00ff},
+                                    max_pts: 5000000,
+                                    
+                                });
+
+                                
+                                // 發送 JointState 消息
+                                function sendJointState(event) {
+                                    event.preventDefault();  // 阻止默認表單提交行為
+                                    console.log('送出');
+                                    jointState.position = [
+                                    parseFloat(document.getElementById('joint_x').value),
+                                    parseFloat(document.getElementById('joint_y').value),
+                                    parseFloat(document.getElementById('joint_z').value),
+                                    parseFloat(document.getElementById('joint_r').value),
+                                    parseFloat(document.getElementById('joint_g').value),
+                                    parseFloat(0),
+                                    parseFloat(0),
+                                    parseFloat(0),
+                                    parseFloat(0),
+                                    ];
+                                    jointState.header.stamp = new Date().getTime() / 1000;
+                                    jointStatePub.publish(jointState);
+                                    return false;
+                                }
+                                function updateJointR() {
+                                    console.log('送出');
+                                    document.getElementById("joint_x_value").innerHTML = document.getElementById("joint_x").value;
+                                    document.getElementById("joint_y_value").innerHTML = document.getElementById("joint_y").value;
+                                    document.getElementById("joint_z_value").innerHTML = document.getElementById("joint_z").value;
+                                    document.getElementById("joint_r_value").innerHTML = document.getElementById("joint_r").value;
+                                    document.getElementById("joint_g_value").innerHTML = document.getElementById("joint_g").value;
+                                    jointState.position = [
+                                    parseFloat(document.getElementById('joint_x').value),
+                                    parseFloat(document.getElementById('joint_y').value)*-1,
+                                    parseFloat(document.getElementById('joint_z').value),
+                                    parseFloat(document.getElementById('joint_r').value),
+                                    parseFloat(document.getElementById('joint_g').value),
+                                    parseFloat(0),
+                                    parseFloat(0),
+                                    parseFloat(0),
+                                    parseFloat(0),
+                                    ];
+                                    jointState.header.stamp = new Date().getTime() / 1000;
+                                    jointStatePub.publish(jointState);
+                                }
+                            
+                              </script>
+                        </div>
+                    </div>
+                </main>
+                <footer class="py-4 bg-light mt-auto">
+                    <div class="container-fluid px-4">
+                        <div class="d-flex align-items-center justify-content-between small">
+                            <div class="text-muted">Copyright &copy; Your Website 2022</div>
+                            <div>
+                                <a href="#">Privacy Policy</a>
+                                &middot;
+                                <a href="#">Terms &amp; Conditions</a>
+                            </div>
+                        </div>
+                    </div>
+
+                     <div class="select_card col-xl-12 col-md-12" style="display:none">
+                        <div class="card bg-success text-white mb-4">
+                            <div class="card-body">Success Card</div>
+                            <div class="card-footer d-flex align-items-center justify-content-between">
+                                <p class="result"></p>
+                            </div>
+                        </div>
+                    </div>
+
+                </footer>
+            </div>
+        </div>
+    </form>
+      <script src="static/Scripts/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+        <script src="static/Scripts/scripts.js"></script>
+        <script src="static/Scripts/datatables-simple-demo.js"></script>
+    <script type="text/javascript"> 
+
+        var hostname = "http://"+document.location.host+"/";
+
+        function imgDisplay() {
+            var board = document.getElementById("gle");
+            board.src = "static/img/loading1.gif";
+            document.getElementById("labelarea").innerHTML = "";
+            document.getElementById("cambutton").value = "開啟";
+            document.getElementById("autograp").value = "自動";
+
+            $('#cambutton').attr("class", "btn btn-outline-primary");
+            $('#autograp').attr('disabled', false);
+        }
+
+        function readlebel() {
+            check_deg();
+            $.ajax({
+                type: "GET",
+                url: hostname + "label_list",
+
+                contentType: "application/json; charset=utf-8",
+                dataType: "json",
+                success: function (data) {
+                    console.log(data);
+                    //document.getElementById("result").innerHTML = "";
+                    document.getElementById("labelarea").innerHTML = "";
+                    for (var a = 0; a < data.length; a++) {
+                        //document.getElementById("result").innerHTML += data[a]['0'][0] + "<br/>";
+                        var card = document.getElementsByClassName('select_card')[0].cloneNode(true);
+                        card.querySelector('.card-body').innerHTML = data[a]['0'][0];
+                        card.querySelector(".result").innerHTML = data[a]['0'][1];
+                        card.style.display = "block";
+                        card.querySelector(".card-body").style.backgroundColor = "#01814A";
+                        card.querySelector(".card-footer").style.backgroundColor = "#006030"
+                        card.addEventListener("mouseover", function () {
+                            this.querySelector(".card-body").style.backgroundColor = "#02C874";
+                            this.querySelector(".card-footer").style.backgroundColor = "#02DF82"
+                            this.style.cursor = "pointer";
+                        });
+                        card.addEventListener("mouseout", function () {
+                            this.querySelector(".card-body").style.backgroundColor = "#01814A";
+                            this.querySelector(".card-footer").style.backgroundColor = "#006030";
+                            //this.style.cursor = "pointer";
+                        });
+                        card.addEventListener("click", function () {
+                            check_deg();
+                            //console.log(this.querySelector(".card-footer").querySelector('p').innerHTML.split(',')[2].substring(3).slice(0, -3));
+                            var class_name = this.querySelector(".card-body").innerHTML.substring(4);
+                            var camx = this.querySelector(".card-footer").querySelector('p').innerHTML.split(',')[1].substring(3).slice(0, -3);
+                            var camy = this.querySelector(".card-footer").querySelector('p').innerHTML.split(',')[2].substring(3).slice(0, -3);
+                            var camz = this.querySelector(".card-footer").querySelector('p').innerHTML.split(',')[3].substring(3).slice(0, -3);
+                            var coordx = document.getElementById("coords_X").value;
+                            var coordy = document.getElementById("coords_Y").value;
+                            var coordz = document.getElementById("coords_Z").value;
+                            var coordw = document.getElementById("coords_W").value;
+                            // var coordp = document.getElementById("coords_P").value;
+                            // var coordr = document.getElementById("coords_R").value;
+                            
+                            console.log(class_name);
+                            console.log(camx);
+                            console.log(camy);
+                            console.log(camz);
+
+
+
+                            $.ajax({
+                                type: "POST",
+                                url: hostname + "robotcoord",
+                                data: JSON.stringify({
+                                    "classname": class_name,
+                                    "camx": camx,
+                                    "camy": camy,
+                                    "camz": camz,
+                                    "coordx": coordx,
+                                    "coordy": coordy,
+                                    "coordz": coordz,
+                                    "coordw": coordw,
+                                    // "coordp": coordp,
+                                    // "coordr": coordr,
+                                }),
+                                contentType: "application/json; charset=utf-8",
+                                dataType: "json",
+                                success: function (response) {
+                                    console.log(response);
+                                    
+									if(response["move"] == "fail"){
+										alert("超出移動範圍");
+									}else if(response["move"] == "busy"){
+										alert("機器移動中。。。")
+									}
+                                    if (window.confirm("座標X : "+response["X"]+"\n"+
+                                    "座標Y : "+response["Y"]+"\n"+
+                                    "座標Z : "+response["Z"]+"\n"+
+                                            "。\n請確認是否移動")) {
+                                        // 用戶按下確認後，發送 AJAX POST 請求
+                                        $.ajax({
+                                            url: "/grab_coord",  // 替換 /your-endpoint 為你的 API 路徑
+                                            type: "POST",
+                                            contentType: "application/json",
+                                            data: JSON.stringify({
+                                                "coordx": response["X"],
+                                                "coordy": response["Y"],
+                                                "coordz": response["Z"],
+                                                // "coordp": coordp,
+                                                // "coordr": coordr,
+                                            }),  // 需要發送的 JSON 數據
+                                            success: function(response) {
+                                                if(response["move"] == "fail"){
+                                                    alert("超出移動範圍");
+                                                }else if(response["move"] == "busy"){
+                                                    alert("機器移動中。。。")
+                                                }
+                                                console.log("請求成功: ", response);
+                                            },
+                                            error: function(error) {
+                                                console.log("請求失敗: ", error);
+                                            }
+                                        });
+                                    }
+                                }
+                            });
+                            //this.style.cursor = "pointer";
+                        });
+                        document.getElementById('labelarea').appendChild(card);
+
+                    }
+                    //TODO : 2023/09/07 把剩下關節移動設定完成
+
+                },
+                error: function () {
+                    // 请求失败后的处理
+                    console.log("请求失败");
+                }
+            });
+        }
+
+        function ajaxbtn(it) {
+            console.log("開啟" + hostname)
+            if (it.value == "關閉") {
+
+                $('#autograp').attr('disabled', false);
+
+                $('#cambutton').attr("class", "btn btn-outline-primary")
+                
+                clearInterval(intervalId);
+                $.ajax({
+                    type: "GET",
+                    url: hostname + "close",
+                    contentType: "application/json; charset=utf-8",
+                    dataType: "json",
+                    success: function (data) {
+                        console.log(data);
+                    },
+                    error: function () {
+                        // 请求失败后的处理
+                        console.log("请求失败");
+                    }
+                });
+                it.value = "開啟";
+            } else {
+                intervalId = setInterval(updateWebcamImage, 1000);
+                $('#autograp').attr('disabled', true);
+                $('#cambutton').attr("class", "btn btn-outline-danger")
+                $.ajax({
+                    type: "GET",
+                    url: hostname + "open",
+                    
+                    contentType: "application/json; charset=utf-8",
+                    dataType: "json",
+                    success: function (data) {
+                        console.log(data);
+                        //TODO : 2023/09/07 把剩下關節移動設定完成
+                    },
+                    error: function () {
+                        console.log("请求失败");
+                    }
+                });
+                it.value = "關閉";
+            }
+
+        }
+
+        function runauto() {
+            console.log('測試');
+            var coordx = document.getElementById("coords_X").value;
+            var coordy = document.getElementById("coords_Y").value;
+            var coordz = document.getElementById("coords_Z").value;
+            var coordw = document.getElementById("coords_W").value;
+            var coordp = document.getElementById("coords_P").value;
+            var coordr = document.getElementById("coords_R").value;
+
+            $.ajax({
+                type: "POST",
+                url: "RoboControl.aspx/Web_SetPR5",
+                data: JSON.stringify({
+                    "data": 1,
+                }),
+                contentType: "application/json; charset=utf-8",
+                dataType: "json",
+                success: function (response) {
+                    console.log(JSON.parse(response.d));
+                },
+                error: function () {
+                    // 请求失败后的处理
+                    console.log("请求失败");
+                }
+            });
+            $.ajax({
+                type: "POST",
+                url: hostname + "openAutoMode",
+                data: JSON.stringify({
+                    "coordx": coordx,
+                    "coordy": coordy,
+                    "coordz": coordz,
+                    "coordw": coordw,
+                    "coordp": coordp,
+                    "coordr": coordr,
+                }),
+                contentType: "application/json; charset=utf-8",
+                dataType: "json",
+                success: function (data) {
+                    console.log(data);
+                },
+                error: function () {
+                    // 请求失败后的处理
+                    console.log("请求失败");
+                }
+            });
+        }
+        function AutoMode(it) {
+
+            if (it.value == "自動") {
+
+                it.value = "關閉";
+                $('#cambutton').attr('disabled', true);
+             
+                runauto();
+
+            } else {
+
+                $('#cambutton').attr('disabled', false);
+
+                $.ajax({
+                    type: "GET",
+                    url: hostname + "close",
+
+                    contentType: "application/json; charset=utf-8",
+                    dataType: "json",
+                    success: function (data) {
+                        console.log(data);
+                    },
+                    error: function () {
+                        // 请求失败后的处理
+                        console.log("请求失败");
+                    }
+                });
+
+                $.ajax({
+                    type: "POST",
+                    url: "RoboControl.aspx/Web_SetPR5",
+                    data: JSON.stringify({
+                        "data": 0,
+                    }),
+                    contentType: "application/json; charset=utf-8",
+                    dataType: "json",
+                    success: function (response) {
+                        console.log(JSON.parse(response.d));
+                    },
+                    error: function () {
+                        // 请求失败后的处理
+                        console.log("请求失败");
+                    }
+                });
+
+                it.value = "自動";
+            }
+
+        }
+
+        function OpenGrap(it) {
+
+            if (it.value == "合爪") {
+                it.value = "開爪";
+                $.ajax({
+                    type: "GET",
+                    url: hostname + "close_grab",
+
+                    contentType: "application/json; charset=utf-8",
+                    dataType: "json",
+                    success: function (data) {
+                        console.log(data);
+                    },
+                    error: function () {
+                        // 请求失败后的处理
+                        console.log("请求失败");
+                    }
+                });
+
+            } else {
+                
+				$.ajax({
+                    type: "GET",
+                    url: hostname + "open_grab",
+
+                    contentType: "application/json; charset=utf-8",
+                    dataType: "json",
+                    success: function (data) {
+                        console.log(data);
+                    },
+                    error: function () {
+                        // 请求失败后的处理
+                        console.log("请求失败");
+                    }
+                });
+                it.value = "合爪";
+            }
+
+        }
+
+
+        function postlocation() {
+            document.getElementsByClassName('select_card').addEventListener("mouseover", function () {
+            });
+        }
+        function subt(){
+            $.ajax({
+                    url:"stop_emergency",
+                    type:"GET",
+                    contentType: "application/json;charset=UTF-8",
+                    // contentType: "application/x-www-form-urlencoded;charset=UTF-8",
+
+                    //Django用法 Post接收contentType 使用x-www-form-urlencoded
+                    //一般使用 application/json;
+                    // data:                   
+                    // JSON.stringify(
+                    //             { 
+                    //                 "tags":"test",   
+                    //                 "filepath":"filepath",                                    
+                    //             }) 
+                    // ,
+                    dataType: 'json',
+
+                        success: function(data){
+                        console.log(data);                                             
+                   
+                    }
+                })
+        }
+        function check_deg() {
+            console.log('已讀')
+            $.ajax({
+                type: "GET",
+                url: "ReadCoords",
+
+                contentType: "application/json; charset=utf-8",
+                dataType: "json",
+                success: function (response) {
+                    console.log(response);
+                    // console.log(JSON.parse(response.d).x);
+
+                    document.getElementById("coords_X").value = response["X"];//Math.round(JSON.parse(response.d).x * 1000) / 1000;
+                    document.getElementById("coords_Y").value = response["Y"];//Math.round(JSON.parse(response.d).y * 1000) / 1000;
+                    document.getElementById("coords_Z").value = response["Z"];//Math.round(JSON.parse(response.d).z * 1000) / 1000;
+                    document.getElementById("coords_W").value = response["W"];//Math.round(JSON.parse(response.d).w * 1000) / 1000;
+                    if(response["moving_status"] == "1"){
+                        $('.red-dot').css("background-color","red")
+
+                    }else{
+                        $('.red-dot').css("background-color","green")
+
+                    }
+                    document.getElementById("joint_x_value").innerHTML = response["X"]/1000;
+                    document.getElementById('joint_x').value = response["X"]/1000;
+                    document.getElementById("joint_y_value").innerHTML = response["Y"]/1000;
+                    document.getElementById('joint_y').value = response["Y"]/1000;
+                    document.getElementById("joint_z_value").innerHTML = response["Z"]/1000;
+                    document.getElementById('joint_z').value = response["Z"]/1000;
+                    switch(document.getElementById('spin_mode').innerHTML){
+                        case "右邊":
+                            document.getElementById("joint_r_value").innerHTML = -1.57;
+                            document.getElementById('joint_r').value = -1.57;
+                            break;
+                        case "左邊":
+                            document.getElementById("joint_r_value").innerHTML = 1.57;
+                            document.getElementById('joint_r').value = 1.57;
+                            break;
+                        case "前面":
+                            document.getElementById("joint_r_value").innerHTML = 0;
+                            document.getElementById('joint_r').value = 0;
+                            break;
+                        case "後面":
+                            document.getElementById("joint_r_value").innerHTML = 3.14;
+                            document.getElementById('joint_r').value = 3.14;
+                            break;
+                    }
+                    document.getElementById("joint_g_value").innerHTML = response["W"]/1830;
+                    document.getElementById('joint_g').value = response["W"]/1830;
+                    jointState.position = [
+                    parseFloat(document.getElementById('joint_x').value),
+                    parseFloat(document.getElementById('joint_y').value)*-1,
+                    parseFloat(document.getElementById('joint_z').value),
+                    parseFloat(document.getElementById('joint_r').value),
+                    parseFloat(document.getElementById('joint_g').value),
+                    parseFloat(0),
+                    parseFloat(0),
+                    parseFloat(0),
+                    parseFloat(0),
+                    ];
+                    jointState.header.stamp = new Date().getTime() / 1000;
+                    jointStatePub.publish(jointState);
+                },
+                error: function () {
+                    // 请求失败后的处理
+                    console.log("请求失败");
+                }
+            });
+        }
+        
+
+        function updateWebcamImage() {
+            // 获取图像元素
+            var webcamImage = document.getElementById('gle');
+            // 设置图像的 src 属性为 Flask 服务器提供的影像流 URL
+            webcamImage.src = hostname + 'video_feed'; // 替换为你的 Flask 服务器地址
+            console.log("test")
+        } 
+
+        //閾值調整
+        const verticalSlider = document.getElementById('vertical-slider');
+        const sliderValue = document.getElementById('slider-value');
+
+        verticalSlider.addEventListener('input', function () {
+            sliderValue.innerText = this.value;
+        });
+        verticalSlider.addEventListener('mouseup', function () {
+            $.ajax({
+                type: "POST",
+                url: hostname + "threshold",
+                data: JSON.stringify({
+                    "threshold": this.value,
+                }),
+                contentType: "application/json; charset=utf-8",
+                dataType: "json",
+                success: function (response) {
+                    console.log(response);
+                }
+            });
+        });
+
+        function tab_Move(it) {
+
+            console.log(it.innerHTML);
+            $.ajax({
+                type: "POST",
+                url: hostname + "move",
+                data: JSON.stringify({
+                    "moveaxis": it.innerHTML,
+                }),
+                contentType: "application/json; charset=utf-8",
+                dataType: "json",
+                success: function (response) {
+					if(response["move"] == "busy"){
+						alert(it.innerHTML+"移動中");
+					}else{
+						document.getElementById("coords_X").value = response["X"];//Math.round(JSON.parse(response.d).x * 1000) / 1000;
+						document.getElementById("coords_Y").value = response["Y"];//Math.round(JSON.parse(response.d).y * 1000) / 1000;
+						document.getElementById("coords_Z").value = response["Z"];//Math.round(JSON.parse(response.d).z * 1000) / 1000;
+					}
+                }
+            });
+        }
+		function tab_Move_spin(it) {
+
+            console.log(it.innerHTML);
+            $.ajax({
+                type: "POST",
+                url: hostname + "spin",
+                data: JSON.stringify({
+                    "move": it.innerHTML,
+                }),
+                contentType: "application/json; charset=utf-8",
+                dataType: "json",
+                success: function (response) {
+                  console.log('response');
+
+                }
+            });
+        }
+		
+		function setting_coord(){
+			var coordx = document.getElementById("coords_X").value;
+			var coordy = document.getElementById("coords_Y").value;
+			var coordz = document.getElementById("coords_Z").value;
+            var coordw = document.getElementById("coords_W").value;
+            
+			$.ajax({
+				type: "POST",
+				url: hostname + "set_coord",
+				data: JSON.stringify({
+					"coordx": coordx,
+					"coordy": coordy,
+					"coordz": coordz,
+					"coordw": coordw,
+					// "coordp": coordp,
+					// "coordr": coordr,
+				}),
+				contentType: "application/json; charset=utf-8",
+				dataType: "json",
+				success: function (response) {
+					console.log(response);
+                    if(response["moving_status"] == "1"){
+                        $('.red-dot').css("background-color","red")
+                    }
+                    else{
+                        $('.red-dot').css("background-color","green")
+                    }
+				}
+			});
+
+            document.getElementById("joint_x_value").innerHTML = coordx/1000;
+            document.getElementById('joint_x').value = coordx/1000;
+            document.getElementById("joint_y_value").innerHTML = coordy/1000;
+            document.getElementById('joint_y').value = coordy/1000;
+            document.getElementById("joint_z_value").innerHTML = coordz/1000;
+            document.getElementById('joint_z').value = coordz/1000;
+            switch(document.getElementById('spin_mode').innerHTML){
+                case "右邊":
+                    document.getElementById("joint_r_value").innerHTML = -1.57;
+                    document.getElementById('joint_r').value = -1.57;
+                    break;
+                case "左邊":
+                    document.getElementById("joint_r_value").innerHTML = 1.57;
+                    document.getElementById('joint_r').value = 1.57;
+                    break;
+                case "前面":
+                    document.getElementById("joint_r_value").innerHTML = 0;
+                    document.getElementById('joint_r').value = 0;
+                    break;
+                case "後面":
+                    document.getElementById("joint_r_value").innerHTML = 3.14;
+                    document.getElementById('joint_r').value = 3.14;
+                    break;
+            }
+            document.getElementById("joint_g_value").innerHTML = coordw/1830;
+            document.getElementById('joint_g').value = coordw/1830;
+            jointState.position = [
+            parseFloat(document.getElementById('joint_x').value),
+            parseFloat(document.getElementById('joint_y').value)*-1,
+            parseFloat(document.getElementById('joint_z').value),
+            parseFloat(document.getElementById('joint_r').value),
+            parseFloat(document.getElementById('joint_g').value),
+            parseFloat(0),
+            parseFloat(0),
+            parseFloat(0),
+            parseFloat(0),
+            ];
+            jointState.header.stamp = new Date().getTime() / 1000;
+            jointStatePub.publish(jointState);
+		}
+		function reset_coord(){
+
+            $.ajax({
+				type: "GET",
+				url: hostname + "zeroing",
+				contentType: "application/json; charset=utf-8",
+				dataType: "json",
+				success: function (response) {
+                    if(response["move"] == "fail"){
+                        alert("當前旋轉臂位置歸零有風險，請將其旋轉向左或向右");
+                    }
+					console.log(response);
+				}
+			});
+
+        }
+
+        function trans_main_board(){
+            if(document.getElementById("control_panels").style.display == "none"){
+                    document.getElementById("imagearea").style.display = "none";
+                    document.getElementById("control_panels").style.display = "flex";
+            }else{
+                document.getElementById("imagearea").style.display = "block";
+                document.getElementById("control_panels").style.display = "none";
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>採摘機台控制顯示介面</title>
+    <link href="static/css/styles.css" rel="stylesheet" />
+    <link href="static/css/table_style.css" rel="stylesheet" />
+    <script src="static/js/all.js" crossorigin="anonymous"></script>
+    <link href="static/js/jquery-ui.css" rel="stylesheet" />
+    <script src="static/js/jquery.js"></script>
+    <script src="static/js/jquery-ui.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            box-sizing: border-box;
+        }
+        .container {
+            display: flex;
+            gap: 2%;
+            width: 90%;
+            height: 90vh;
+        }
+        .left-panel, .right-panel {
+            background-color: rgba(42, 107, 143, 0.6);
+            border-radius: 10px;
+            padding: 2%;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+        }
+        .left-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 2%;
+            width: 35%;
+        }
+        .status-image {
+            background-color: rgba(80, 123, 158, 0.6);
+            border-radius: 10px;
+            height: 40%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #fff;
+        }
+        .status-parameters {
+            background-color: rgba(108, 143, 184, 0.6);
+            border-radius: 10px;
+            padding: 2%;
+            flex-grow: 1;
+        }
+        .status-parameters label {
+            display: block;
+            margin-bottom: 5px;
+            color: #fff;
+        }
+        .status-parameters input {
+            width: 100%;
+            padding: 5px;
+            margin-top: 5px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+        }
+        .right-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 2%;
+            width: 60%;
+        }
+        .harvest-area {
+            background-color: rgba(26, 90, 117, 0.6);
+            height: 70%;
+            border-radius: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #fff;
+        }
+        .harvest-count {
+            background-color: rgba(26, 90, 117, 0.6);
+            height: 20%;
+            border-radius: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #fff;
+        }
+    </style>
+
+    <script>
+
+        function subt(){
+            $.ajax({
+                    url:"write",
+                    type:"POST",
+                    contentType: "application/json;charset=UTF-8",
+                    // contentType: "application/x-www-form-urlencoded;charset=UTF-8",
+
+                    //Django用法 Post接收contentType 使用x-www-form-urlencoded
+                    //一般使用 application/json;
+                    data:                   
+                    JSON.stringify(
+                                { 
+                                    "tags":"test",   
+                                    "filepath":"filepath",                                    
+                                }) 
+                    ,dataType: 'json',
+
+                        success: function(data){
+                        console.log(data);                                             
+                   
+                    }
+                })
+        }
+    </script>
+</head>
+<body>
+    <div class="container">
+        <div class="left-panel">
+            <div class="status-image">
+                模式 : 右邊 <br/>
+                <img src="static/img/left.png" style="width: 40%;position:relative;"/>
+            </div>
+            <div class="status-parameters">
+                <!-- <input class="btn btn-info btn-sm" type="button" id="subt" onclick="subt()" value="送出"> -->
+                <label class="btn btn-info btn-sm" style="font-size: 4vmin;">
+                    <input type="button" style="display: none;font-size: 4vmin;" onclick="subt()" value="送出" name="upload">
+                     送出
+                  </label>
+                <label>機台狀態參數</label>
+                <label for="x">X:</label>
+                <input type="text" id="x" placeholder="輸入 X 值">
+                <label for="y">Y:</label>
+                <input type="text" id="y" placeholder="輸入 Y 值">
+                <label for="z">Z:</label>
+                <input type="text" id="z" placeholder="輸入 Z 值">
+                <label for="speed">速度:</label>
+                <input type="text" id="speed" placeholder="輸入速度">
+                <label for="power">電量:</label>
+                <input type="text" id="power" placeholder="輸入電量">
+                
+
+            </div>
+        </div>
+        <div class="right-panel">
+            <div class="harvest-area">
+                採摘畫面區域
+            </div>
+            <div class="harvest-count">
+                採摘數量: 7
+            </div>
+        </div>
+    </div>
+</body>
+</html>

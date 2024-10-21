@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Circular Button</title>
+    <script>
+        $(document).ready(function() {
+  $('.quart').click(function() {
+    var ind = $(this).index();
+    switch (ind) {
+      case 0:
+        var tex = "div 1";
+        break;
+      case 1:
+        var tex = "div 2";
+        break;
+      case 2:
+        var tex = "div 3";
+        break;
+      case 3:
+        var tex = "div 4";
+        break;
+    }
+    $('.center').text(tex);
+  });
+
+});
+    </script>
+    <style>
+        .wrap {
+            height: 300px;
+            width: 300px;
+            border-radius: 50%;
+            position: relative;
+            overflow: hidden;
+            transform: rotate(45deg);
+            /* transform: translateX(-50%); */
+        }
+        .quart {
+        position: absolute;
+        height: 100%;
+        width: 100%;
+        background: tomato;
+        transition: all 0.4s;
+        
+        }
+        .quart:first-child {
+        top: 0;
+        left: 0;
+        border: 1px solid black;
+        }
+        .quart:nth-child(2) {
+        top: 0;
+        left: 50%;
+        }
+        .quart:nth-child(3) {
+        top: 50%;
+        left: 0;
+        }
+        .quart:nth-child(4) {
+        top: 50%;
+        left: 50%;
+        }
+        .center {
+        height: 80%;
+        width: 80%;
+        position: absolute;
+        top: 10%;
+        left: 10%;
+        background: lightgray;
+        border-radius: 50%;
+        text-align: center;
+        line-height: 160px;
+        }
+        .quart:hover {
+            background: dimgray;
+        }
+    </style>
+</head>
+<body>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
+        <div class="wrap">
+        <div class="quart">
+            <p style="position: absolute;top: -100%;left: 0%;">XXXXXXXXXXXXXXXXXXXXX</p>
+        </div>
+        <div class="quart"></div>
+        <div class="quart"></div>
+        <div class="quart"></div>
+        <div class="center">Click My non-existent Corners!</div>
+        </div>
+</body>
+</html>
