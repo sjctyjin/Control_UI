@@ -1,4 +1,4 @@
-from flask import Flask, request, abort,jsonify,render_template, Response
+from flask import Flask, request, abort,jsonify,render_template, Response,session
 import json
 import datetime
 import time
@@ -16,9 +16,12 @@ import cv2
 from flask_socketio import SocketIO
 import base64
 import eventlet
+import secrets
 # from camera import process_images,generate_frame  # 假設 generate_frame 已經定義在 camera.py 中
 
 app = Flask(__name__)
+app.secret_key = secrets.token_hex(16)  # 這個密鑰應該是隨機且保密的
+
 socketio = SocketIO(app, async_mode='eventlet')
 # 定義文件路徑
 STATIC_FOLDER = os.path.join(app.root_path, 'static')
@@ -52,20 +55,14 @@ threshold_value = 50  # 閾值
 modelname = "Fruit"
 # modelname = "yolov8n"
 step_move_state = 0
-
-# pipeline = rs.pipeline()  # 定义流程pipeline，创建一个管道
-# config = rs.config()  # 定义配置config
-# config.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)  # 配置depth流
-# config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)  # 配置color流
-# pipe_profile = pipeline.start(config)  # streaming流开始
-# align = rs.align(rs.stream.color)
-
+camera_running = False
+current_user = None  # 用來記錄當前使用攝像頭的使用者
 baudrate = 115200  # 波特率需要与Arduino上的设置一致
 """
 Arduino
 """
 # port = '/dev/ttyACM0'
-port = 'COM15'  # 根据您的情况更改端口号，例如在Windows上可能是 'COM3'
+port = 'COM16'  # 根据您的情况更改端口号，例如在Windows上可能是 'COM3'
 # Arduino = serial.Serial(port, baudrate, timeout=0.1)
 """
 Emm42
@@ -79,6 +76,13 @@ MKS 57Servo : Aspina
 # port = 'COM19'  # 根据您的情况更改端口号，例如在Windows上可能是 'COM3'
 # MKS_Aspina = serial.Serial(port, baudrate, timeout=0.2)
 
+
+@app.route('/', methods=['GET'])
+def home():
+    if 'user_id' not in session:
+        session['user_id'] = request.remote_addr
+    print(session['user_id'])
+    return render_template(f'WS_index.html')
 """
 /////////////////////////////////////////////////   EMM42 旋轉控制     /////////////////////////////////////////////////////////////////////////////////////
 """
@@ -86,7 +90,6 @@ def calculate_crc(data):
     # 簡單的累加和取反
     crc = sum(data) & 0xFF  # 累加和取低 8 位
     return crc
-
 def zero_angle(ser):
     ser.write(b'\x01\x32\x6B')#讀取脈衝
     data = ser.readall()
@@ -542,10 +545,15 @@ def process_images():
                     #                                    cv2.WINDOW_KEEPRATIO | cv2.WINDOW_GUI_EXPANDED)
                     colorizer_depth = cv2.applyColorMap(colorizer_depth, cv2.COLORMAP_JET)
                     colorizer_depth = cv2.resize(colorizer_depth, (640, 480))
-                    # imOut = im_array
+                    imOut = im_array
 
-                    imOut = np.hstack((im_array, colorizer_depth))
-                    image_queue_buffer = imOut
+                    # imOut = np.hstack((im_array, colorizer_depth))
+                    # image_queue_buffer = imOut
+                    _, buffer = cv2.imencode('.jpg', imOut)
+                    frame_encoded = base64.b64encode(buffer).decode('utf-8')
+                    # 發送至前端
+                    socketio.emit('camera_frame', {'frame': frame_encoded})
+                    eventlet.sleep(0.02)  # 每幀間隔時間（50幀/秒，大約20ms）
                     # cv2.resizeWindow('detection', 640, 480)
                     # cv2.imshow('detection', im_array)
                     # cv2.imshow('detectio2', imOut)
@@ -562,7 +570,7 @@ def process_images():
                 if terminate_thread == False:
                     pipeline.stop()
                     break
-                image_queue = imOut
+                # image_queue = imOut
                 # print("程式尾巴")
                 # yield (b'--frame\r\n'
                 #        b'Content-Type: image/jpeg\r\n\r\n' + img_encoded.tobytes() + b'\r\n')
@@ -576,8 +584,148 @@ def process_images():
             pipeline.stop()
         except:
             print("already dying")
+"""
 
 
+
+
+
+
+    ============     ==============    ============    ==         ==    ==============   ==============
+    ==               ==          ==    ==              ==        ==     ==                     ==
+    ==               ==          ==    ==              ==       ==      ==                     ==
+    ==               ==          ==    ==              ======          ==                     ==
+    ============     ==          ==    ==              ==     ==        ============           ==
+              ==     ==          ==    ==              ==       ==      ==                     ==
+              ==     ==          ==    ==              ==         ==    ==                     ==
+    ============     ==============    ============    ==           ==  ==============         ==
+    
+    
+    
+    
+    
+    
+    
+
+"""
+# 接收前端開關命令，控制攝像頭
+@socketio.on('toggle_camera')
+def handle_toggle_camera(data):
+    global terminate_thread,current_user
+    # 檢查當前的 session ID
+    print("影像控制者 :  ",current_user)
+    user_id = request.remote_addr
+    print("當前使用者 : ",user_id)
+    if data['status'] == 'start':
+        if not terminate_thread:
+            print("啟動")
+            current_user = user_id
+            terminate_thread = True
+            socketio.start_background_task(process_images)
+        elif current_user != user_id:
+            socketio.emit('camera_control_error', {'message': 'Camera is already in use by another user.'})
+
+    elif data['status'] == 'stop':
+        if terminate_thread and current_user == user_id:
+            print("停止")
+            terminate_thread = False
+            current_user = None
+
+# @socketio.on('connect')
+# def on_connect():
+#     socketio.start_background_task(process_images)
+# 處理移動指令和座標查詢的 WebSocket 事件
+@socketio.on('move_command')
+def handle_move_command(data):
+    global step_move_state, machine_status
+    # 移動指令處理
+    if data.get('moveaxis'):
+        if step_move_state == 0:
+            step_move_state = 1
+            machine_status["moving_status"] = 1
+            axis = data.get('moveaxis')  # 獲取移動指令
+            if axis in ["X+", "X-", "Y+", "Y-", "Z+", "Z-"]:
+                Arduino.write(f'Stepper{axis} 10\n'.encode())
+                socketio.emit('status_update', machine_status)  # 通知前端開始移動
+
+                # 開始讀取狀態
+                count_time = 0
+                previous_line = ""
+                while True:
+                    if count_time >= 30:
+                        machine_status["moving_status"] = 0
+                        break
+
+                    if Arduino.in_waiting > 0:
+                        response = Arduino.readline().decode().strip()
+                        print("Arduino:", response)
+                        if response == "DONE":
+                            # 假設更新機械臂當前座標
+                            machine_status["X"] = float(previous_line.split(',')[0].split(':')[1])
+                            machine_status["Y"] = float(previous_line.split(',')[1].split(':')[1])
+                            machine_status["Z"] = float(previous_line.split(',')[2].split(':')[1])
+                            machine_status["moving_status"] = 0
+                            step_move_state = 0
+                            socketio.emit('status_update', machine_status)  # 回傳更新的狀態
+                            break
+                        previous_line = response
+
+                    count_time += 1
+                    socketio.emit('status_update', machine_status)  # 實時回報當前狀態
+                    time.sleep(0.1)
+            else:
+                socketio.emit('status_error', {"error": "Invalid axis"})
+        else:
+            socketio.emit('status_error', {"error": "Machine is busy"})
+
+    # 讀取座標的功能
+    if data.get('getpos'):
+        try:
+            print("讀取座標")
+            pos_data = GET_POS(Arduino)
+            print(pos_data)
+            x = float(pos_data.split(',')[0].split(':')[1])
+            y = float(pos_data.split(',')[1].split(':')[1])
+            z = float(pos_data.split(',')[2].split(':')[1])
+            machine_status["X"] = x
+            machine_status["Y"] = y
+            machine_status["Z"] = z
+            machine_status["moving_status"] = step_move_state
+            socketio.emit('status_update', machine_status)  # 返回座標
+        except Exception as e:
+            print("Failed to get coordinates")
+            socketio.emit('status_error', {"error": str(e)})
+    # 設置座標功能
+    if data.get('set_coord'):
+        x = float(data['set_coord']['coordx'])
+        y = float(data['set_coord']['coordy'])
+        z = float(data['set_coord']['coordz'])
+        w = float(data['set_coord']['coordw'])
+        print(x,y,z,w)
+        # 檢查是否超出範圍
+        if x > 250 or y > 200 or z > 300:
+            print("超過範圍")
+            socketio.emit('status_error', {"move": "fail"})
+        elif step_move_state == 1:
+            print("移動中...")
+            socketio.emit('status_error', {"move": "busy"})
+        else:
+            step_move_state = 1
+            machine_status["moving_status"] = 1
+            Axis_move(Arduino, x, y, z, w)
+            print("移動完成")
+            step_move_state = 0
+            machine_status["moving_status"] = 0
+            socketio.emit('status_update', machine_status)  # 回傳狀態
+"""
+
+
+
+
+
+
+
+"""
 def calculate_new_base_position(current_base_pos, target_camera_coords):
     x_base, y_base, z_base = current_base_pos
     x_cam, y_cam, z_cam = target_camera_coords
@@ -603,10 +751,7 @@ def write_to_file(machine_status):
     except Exception as e:
         print(e)
 
-@app.route('/', methods=['GET'])
-def home():
 
-    return render_template(f'RoboVisionHub.html')
 
 # API：接收點動指令
 @app.route('/move', methods=['POST'])
@@ -776,23 +921,20 @@ def video_feed():
                         print(f"An error occurred: {e}")
 
     return Response(generate_frame(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+
 # 打開偵測
 @app.route('/open', methods=['GET'])
 def open_screen():
     global terminate_thread
-    global image_queue_buffer
     global machine_status
-
     if not terminate_thread:
-        terminate_thread = True
-        processing_thread = threading.Thread(target=process_images)
-        processing_thread.daemon = True
-        processing_thread.start()
-
         machine_status["cam_Ready"] = "True"
         write_to_file(machine_status)# 保存機器狀態
         print("開啟")
         return jsonify({"status":"done"})
+    else:
+        return jsonify({"status": "busy"})
 
 # 調整閾值
 @app.route('/threshold', methods=['POST'])
@@ -808,14 +950,16 @@ def threshold():
 @app.route('/close', methods=['GET'])
 def close_screen():
     global terminate_thread
-    global image_queue_buffer
-    global image_queue
     global machine_status
-    terminate_thread = False
-    machine_status["cam_Ready"] = "False"
-    print("關閉")
-    write_to_file(machine_status)  # 保存機器狀態
-    return jsonify({"status": "close"})
+    global current_user
+    user_id = request.remote_addr
+    if terminate_thread and user_id == current_user:
+        terminate_thread = False
+        write_to_file(machine_status)  # 保存機器狀態
+        print("開啟")
+        return jsonify({"status": "close"})
+    else:
+        return jsonify({"status": "busy"})
 
 # 輸出偵測資料
 @app.route('/label_list', methods=['GET'])
@@ -1093,26 +1237,28 @@ if __name__ == '__main__':
     image_queue = []
     image_queue_buffer = []
     labels_api = []
-    t2 = threading.Thread(target=app.run, kwargs={'host': '0.0.0.0', 'debug': True, 'use_reloader': False})
-    t2.start()
+
+    # t2 = threading.Thread(target=app.run, kwargs={'host': '0.0.0.0', 'debug': True, 'use_reloader': False})
+    # t2.start()
     # 如果 static 文件夾不存在，創建它
     if not os.path.exists(STATIC_FOLDER):
         os.makedirs(STATIC_FOLDER)
     with open(JSON_FILE_PATH, 'r') as json_file:
         data = json.load(json_file)
         machine_status = data
-    if machine_status["cam_Ready"] == "True":
-        print("開始")
-        terminate_thread = True
-        processing_thread = threading.Thread(target=process_images)
-        # processing_thread.daemon = True
-        processing_thread.start()
-        print("結束")
-    else:
-        terminate_thread = False
+    # if machine_status["cam_Ready"] == "True":
+    #     print("開始")
+    #     terminate_thread = True
+    #     processing_thread = threading.Thread(target=process_images)
+    #     # processing_thread.daemon = True
+    #     processing_thread.start()
+    #     print("結束")
+    # else:
+    #     terminate_thread = False
     # 啟動 Flask 應用
     # t2 = threading.Thread(target=app.run, args=('0.0.0.0',True))  #
 
     # app.run(host='0.0.0.0', port=5000, debug=True)
     # app.run(host='192.168.68.200', ssl_context=('ssl.csr', 'ssl.key'), threaded=True)
 
+    socketio.run(app, host='0.0.0.0', port=5000)
