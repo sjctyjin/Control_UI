@@ -1,7 +1,11 @@
 
 在VM中 Ubuntu_Mecharm_pi_270_ROS 開啟內容
+## 安裝依賴
+```bash
+sudo apt-get install ros-melodic-rosbridge-suit
+sudo apt install ros-melodic-tf2-web-republisher
 
-
+```
 ## **1 .專案下啟動scout_2.0
 
 ```bash
