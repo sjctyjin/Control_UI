@@ -1,9 +1,13 @@
 
 在VM中 Ubuntu_Mecharm_pi_270_ROS 開啟內容
+python3.6
 ## 安裝依賴
 ```bash
 sudo apt-get install ros-melodic-rosbridge-suit
 sudo apt install ros-melodic-tf2-web-republisher
+pip3 install yarl==1.7.2
+pip3 install aiohttp==3.8.6
+pip3 install aiohttp-cors==0.7.0
 
 ```
 ## **1 .專案下啟動scout_2.0
