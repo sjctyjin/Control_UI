@@ -5,6 +5,8 @@ python3.6
 ```bash
 sudo apt-get install ros-melodic-rosbridge-suit
 sudo apt install ros-melodic-tf2-web-republisher
+pip3 install rospkg
+pip3 install PySide2
 pip3 install yarl==1.7.2
 pip3 install aiohttp==3.8.6
 pip3 install aiohttp-cors==0.7.0
